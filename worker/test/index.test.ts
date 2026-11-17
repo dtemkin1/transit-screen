@@ -127,6 +127,72 @@ describe('worker', () => {
     expect(calls).toHaveLength(0)
   })
 
+  it.each([
+    '/mbta/constructor',
+    '/mbta/toString',
+    '/mbta/__proto__',
+    '/mbta/hasOwnProperty',
+    '/mbta/stops/../vehicles',
+    '/mbta/stops%2F..%2Fvehicles',
+    '/mbta/stops/extra',
+    '/passio/mit/../x',
+    '/passio/mit%2F..%2Fx/gtfs.zip',
+    '/passio/constructor/gtfs.zip',
+  ])('404s without fetching for %s', async (path) => {
+    const { calls, run } = setup(() => new Response('x'))
+    const res = await run(new Request(`https://w.test${path}`))
+    expect(res.status).toBe(404)
+    expect(calls).toHaveLength(0)
+  })
+
+  it('stores and returns Cache-Control max-age per TTL', async () => {
+    const { cache, run } = setup(() => new Response('{}', { status: 200 }))
+    const cases: [string, number][] = [
+      ['/mbta/predictions', 10],
+      ['/mbta/alerts', 60],
+      ['/mbta/schedules', 300],
+      ['/mbta/stops', 86400],
+      ['/mbta/routes', 86400],
+      ['/passio/charlesriver/gtfs.zip', 21600],
+    ]
+    for (const [path, ttl] of cases) {
+      const res = await run(new Request(`https://w.test${path}`))
+      expect(res.headers.get('Cache-Control')).toBe(`public, max-age=${ttl}`)
+    }
+    for (const stored of cache.store.values()) {
+      expect(stored.headers.get('Cache-Control')).toMatch(/^public, max-age=\d+$/)
+    }
+    expect(cache.store.size).toBe(cases.length)
+  })
+
+  it('walk accepts exactly 500 targets and caches under 24h', async () => {
+    const { calls, run } = setup((_u, init) => {
+      const n = JSON.parse(String(init?.body)).targets.length
+      return new Response(JSON.stringify({ sources_to_targets: [Array.from({ length: n }, () => ({ time: 1 }))] }))
+    })
+    const targets = Array.from({ length: 500 }, () => ({ lat: 1, lon: 1 }))
+    const res = await run(
+      new Request('https://w.test/walk', { method: 'POST', body: JSON.stringify({ origin: { lat: 1, lon: 1 }, targets }) }),
+    )
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Cache-Control')).toBe('public, max-age=86400')
+    expect(calls).toHaveLength(10)
+  })
+
+  it('walk cache key differs for different origins and targets', async () => {
+    const { cache, run } = setup((_u, init) => {
+      const n = JSON.parse(String(init?.body)).targets.length
+      return new Response(JSON.stringify({ sources_to_targets: [Array.from({ length: n }, () => ({ time: 1 }))] }))
+    })
+    const post = (origin: object, targets: object[]) =>
+      run(new Request('https://w.test/walk', { method: 'POST', body: JSON.stringify({ origin, targets }) }))
+    await post({ lat: 1, lon: 1 }, [{ lat: 2, lon: 2 }])
+    await post({ lat: 1.5, lon: 1 }, [{ lat: 2, lon: 2 }])
+    await post({ lat: 1, lon: 1 }, [{ lat: 2, lon: 3 }])
+    await post({ lat: 1.000001, lon: 1 }, [{ lat: 2, lon: 2 }])
+    expect(cache.store.size).toBe(3)
+  })
+
   it('CORS allows configured origin only', async () => {
     const { run } = setup(() => new Response('{}', { status: 200 }))
     const ok = await run(new Request('https://w.test/mbta/stops', { headers: { Origin: 'https://dtemkin1.github.io' } }))

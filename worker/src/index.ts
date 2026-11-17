@@ -170,7 +170,7 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
   const parts = url.pathname.split('/').filter(Boolean)
   let res: Response
 
-  if (parts[0] === 'mbta' && parts.length === 2 && req.method === 'GET' && parts[1] in MBTA_TTL) {
+  if (parts[0] === 'mbta' && parts.length === 2 && req.method === 'GET' && Object.hasOwn(MBTA_TTL, parts[1])) {
     res = await mbta(req, env, deps, parts[1], url.search)
   } else if (
     parts[0] === 'passio' &&
