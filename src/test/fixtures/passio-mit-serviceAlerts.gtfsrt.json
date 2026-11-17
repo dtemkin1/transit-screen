@@ -1,0 +1,13 @@
+{
+  "header": { "gtfs_realtime_version": "2.0", "incrementality": 0, "timestamp": 1794958822 },
+  "entity": [
+    {
+      "id": "alert-1",
+      "alert": {
+        "header_text": { "translation": [{ "text": "Tech Shuttle detour at Vassar St", "language": "en" }] },
+        "informed_entity": [{ "route_id": "63220" }, { "stop_id": "988" }]
+      }
+    },
+    { "id": "alert-2", "alert": { "informed_entity": [{ "route_id": "56140" }] } }
+  ]
+}
