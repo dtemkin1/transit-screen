@@ -1,0 +1,196 @@
+export interface Env {
+  MBTA_API_KEY: string
+  ALLOWED_ORIGINS: string
+}
+
+interface Deps {
+  fetch: typeof fetch
+  cache: Cache
+}
+
+interface LatLon {
+  lat: number
+  lon: number
+}
+
+const MBTA_TTL: Record<string, number> = {
+  predictions: 10,
+  alerts: 60,
+  schedules: 300,
+  stops: 86400,
+  routes: 86400,
+}
+const PASSIO_AGENCIES = new Set(['mit', 'charlesriver'])
+const PASSIO_TTL = 6 * 3600
+const WALK_TTL = 24 * 3600
+const WALK_CHUNK = 50
+const WALK_MAX = 500
+const VALHALLA = 'https://valhalla1.openstreetmap.de/sources_to_targets'
+
+function corsHeaders(req: Request, env: Env): Headers {
+  const h = new Headers()
+  const origin = req.headers.get('Origin')
+  const allowed = env.ALLOWED_ORIGINS.split(',').map((s) => s.trim())
+  if (origin && allowed.includes(origin)) {
+    h.set('Access-Control-Allow-Origin', origin)
+    h.set('Vary', 'Origin')
+  }
+  return h
+}
+
+function withCors(res: Response, cors: Headers): Response {
+  const out = new Response(res.body, res)
+  cors.forEach((v, k) => out.headers.set(k, v))
+  return out
+}
+
+function text(status: number, body: string): Response {
+  return new Response(body, { status })
+}
+
+function cacheable(res: Response, ttl: number): Response {
+  const out = new Response(res.body, res)
+  out.headers.set('Cache-Control', `public, max-age=${ttl}`)
+  return out
+}
+
+async function sha256Hex(s: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+async function cached(
+  deps: Deps,
+  key: Request,
+  produce: () => Promise<Response>,
+  ttl: number,
+): Promise<Response> {
+  const hit = await deps.cache.match(key)
+  if (hit) return hit
+  const res = await produce()
+  if (res.status !== 200) return res
+  const stored = cacheable(res, ttl)
+  await deps.cache.put(key, stored.clone())
+  return stored
+}
+
+async function mbta(req: Request, env: Env, deps: Deps, name: string, search: string): Promise<Response> {
+  const ttl = MBTA_TTL[name]
+  const key = new Request(`https://cache.local/mbta/${name}${search}`)
+  const produce = async () => {
+    const headers: Record<string, string> = { 'x-api-key': env.MBTA_API_KEY }
+    const ims = req.headers.get('If-Modified-Since')
+    if (ims) headers['If-Modified-Since'] = ims
+    return deps.fetch(`https://api-v3.mbta.com/${name}${search}`, { headers })
+  }
+  // Conditional requests bypass the shared cache so 304 semantics reach the client.
+  if (req.headers.has('If-Modified-Since')) {
+    const up = await produce()
+    return up.status === 200 ? cacheable(up, ttl) : up
+  }
+  return cached(deps, key, produce, ttl)
+}
+
+async function passio(deps: Deps, agency: string): Promise<Response> {
+  const key = new Request(`https://cache.local/passio/${agency}/gtfs.zip`)
+  return cached(
+    deps,
+    key,
+    () => deps.fetch(`https://passio3.com/${agency}/passioTransit/gtfs/google_transit.zip`),
+    PASSIO_TTL,
+  )
+}
+
+function isLatLon(v: unknown): v is LatLon {
+  return (
+    typeof v === 'object' &&
+    v !== null &&
+    typeof (v as LatLon).lat === 'number' &&
+    typeof (v as LatLon).lon === 'number' &&
+    Number.isFinite((v as LatLon).lat) &&
+    Number.isFinite((v as LatLon).lon)
+  )
+}
+
+const round5 = (n: number) => Math.round(n * 1e5) / 1e5
+
+async function walk(req: Request, deps: Deps): Promise<Response> {
+  if (req.method !== 'POST') return text(405, 'method not allowed')
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return text(400, 'invalid json')
+  }
+  const { origin, targets } = (body ?? {}) as { origin?: unknown; targets?: unknown }
+  if (!isLatLon(origin) || !Array.isArray(targets) || !targets.every(isLatLon)) {
+    return text(400, 'expected { origin, targets }')
+  }
+  if (targets.length > WALK_MAX) return text(400, `max ${WALK_MAX} targets`)
+
+  const o = { lat: round5(origin.lat), lon: round5(origin.lon) }
+  const t = targets.map((p) => ({ lat: round5(p.lat), lon: round5(p.lon) }))
+  const hash = await sha256Hex(JSON.stringify({ origin: o, targets: t }))
+  const key = new Request(`https://cache.local/walk/${hash}`)
+
+  return cached(
+    deps,
+    key,
+    async () => {
+      const seconds: (number | null)[] = []
+      for (let i = 0; i < t.length; i += WALK_CHUNK) {
+        const chunk = t.slice(i, i + WALK_CHUNK)
+        const up = await deps.fetch(VALHALLA, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ sources: [o], targets: chunk, costing: 'pedestrian' }),
+        })
+        if (!up.ok) return text(502, 'walk upstream error')
+        const json = (await up.json()) as { sources_to_targets?: { time: number | null }[][] }
+        const row = json.sources_to_targets?.[0]
+        if (!row || row.length !== chunk.length) return text(502, 'walk upstream malformed')
+        for (const cell of row) seconds.push(typeof cell?.time === 'number' ? cell.time : null)
+      }
+      return Response.json({ seconds })
+    },
+    WALK_TTL,
+  )
+}
+
+export async function handle(req: Request, env: Env, deps: Deps): Promise<Response> {
+  const cors = corsHeaders(req, env)
+  if (req.method === 'OPTIONS') {
+    cors.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    cors.set('Access-Control-Allow-Headers', 'Content-Type, If-Modified-Since')
+    cors.set('Access-Control-Max-Age', '86400')
+    return new Response(null, { status: 204, headers: cors })
+  }
+
+  const url = new URL(req.url)
+  const parts = url.pathname.split('/').filter(Boolean)
+  let res: Response
+
+  if (parts[0] === 'mbta' && parts.length === 2 && req.method === 'GET' && parts[1] in MBTA_TTL) {
+    res = await mbta(req, env, deps, parts[1], url.search)
+  } else if (
+    parts[0] === 'passio' &&
+    parts.length === 3 &&
+    parts[2] === 'gtfs.zip' &&
+    req.method === 'GET' &&
+    PASSIO_AGENCIES.has(parts[1])
+  ) {
+    res = await passio(deps, parts[1])
+  } else if (parts[0] === 'walk' && parts.length === 1) {
+    res = await walk(req, deps)
+  } else {
+    res = text(404, 'not found')
+  }
+  cors.set('Access-Control-Expose-Headers', 'Last-Modified')
+  return withCors(res, cors)
+}
+
+export default {
+  fetch(req: Request, env: Env): Promise<Response> {
+    return handle(req, env, { fetch: globalThis.fetch.bind(globalThis), cache: caches.default })
+  },
+}
