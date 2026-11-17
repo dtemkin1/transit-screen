@@ -1,0 +1,112 @@
+{
+  "data": [
+    {
+      "attributes": {
+        "latitude": 42.362434,
+        "longitude": -71.085591,
+        "name": "Kendall/MIT"
+      },
+      "id": "70072",
+      "links": {
+        "self": "/stops/70072"
+      },
+      "relationships": {
+        "parent_station": {
+          "data": {
+            "id": "place-knncl",
+            "type": "stop"
+          }
+        }
+      },
+      "type": "stop"
+    },
+    {
+      "attributes": {
+        "latitude": 42.362355,
+        "longitude": -71.085605,
+        "name": "Kendall/MIT"
+      },
+      "id": "70071",
+      "links": {
+        "self": "/stops/70071"
+      },
+      "relationships": {
+        "parent_station": {
+          "data": {
+            "id": "place-knncl",
+            "type": "stop"
+          }
+        }
+      },
+      "type": "stop"
+    },
+    {
+      "attributes": {
+        "latitude": 42.365379,
+        "longitude": -71.103554,
+        "name": "Central"
+      },
+      "id": "70070",
+      "links": {
+        "self": "/stops/70070"
+      },
+      "relationships": {
+        "parent_station": {
+          "data": {
+            "id": "place-cntsq",
+            "type": "stop"
+          }
+        }
+      },
+      "type": "stop"
+    },
+    {
+      "attributes": {
+        "latitude": 42.365304,
+        "longitude": -71.103621,
+        "name": "Central"
+      },
+      "id": "70069",
+      "links": {
+        "self": "/stops/70069"
+      },
+      "relationships": {
+        "parent_station": {
+          "data": {
+            "id": "place-cntsq",
+            "type": "stop"
+          }
+        }
+      },
+      "type": "stop"
+    }
+  ],
+  "included": [
+    {
+      "attributes": {
+        "latitude": 42.365486,
+        "longitude": -71.103802,
+        "name": "Central"
+      },
+      "id": "place-cntsq",
+      "links": {
+        "self": "/stops/place-cntsq"
+      },
+      "relationships": {},
+      "type": "stop"
+    },
+    {
+      "attributes": {
+        "latitude": 42.3624908,
+        "longitude": -71.0861765,
+        "name": "Kendall/MIT"
+      },
+      "id": "place-knncl",
+      "links": {
+        "self": "/stops/place-knncl"
+      },
+      "relationships": {},
+      "type": "stop"
+    }
+  ]
+}

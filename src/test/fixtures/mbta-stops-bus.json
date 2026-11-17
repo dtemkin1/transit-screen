@@ -1,0 +1,56 @@
+{
+  "data": [
+    {
+      "attributes": {
+        "latitude": 42.360559,
+        "longitude": -71.093953,
+        "name": "Vassar St @ Massachusetts Ave"
+      },
+      "id": "21773",
+      "links": {
+        "self": "/stops/21773"
+      },
+      "relationships": {
+        "parent_station": {
+          "data": null
+        }
+      },
+      "type": "stop"
+    },
+    {
+      "attributes": {
+        "latitude": 42.359349,
+        "longitude": -71.093716,
+        "name": "77 Massachusetts Ave"
+      },
+      "id": "97",
+      "links": {
+        "self": "/stops/97"
+      },
+      "relationships": {
+        "parent_station": {
+          "data": null
+        }
+      },
+      "type": "stop"
+    },
+    {
+      "attributes": {
+        "latitude": 42.360708,
+        "longitude": -71.096014,
+        "name": "Massachusetts Ave @ Albany St"
+      },
+      "id": "74",
+      "links": {
+        "self": "/stops/74"
+      },
+      "relationships": {
+        "parent_station": {
+          "data": null
+        }
+      },
+      "type": "stop"
+    }
+  ],
+  "included": []
+}

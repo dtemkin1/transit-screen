@@ -1,0 +1,300 @@
+{
+  "data": [
+    {
+      "attributes": {
+        "arrival_time": "2026-11-17T19:24:00-05:00",
+        "departure_time": "2026-11-17T19:24:00-05:00",
+        "direction_id": 0,
+        "stop_sequence": 50
+      },
+      "id": "schedule-77871140-70071-50",
+      "relationships": {
+        "added_routes": {
+          "data": []
+        },
+        "route": {
+          "data": {
+            "id": "Red",
+            "type": "route"
+          }
+        },
+        "stop": {
+          "data": {
+            "id": "70071",
+            "type": "stop"
+          }
+        },
+        "trip": {
+          "data": {
+            "id": "77871140",
+            "type": "trip"
+          }
+        }
+      },
+      "type": "schedule"
+    },
+    {
+      "attributes": {
+        "arrival_time": null,
+        "departure_time": "2026-11-17T19:32:00-05:00",
+        "direction_id": 0,
+        "stop_sequence": 50
+      },
+      "id": "schedule-77871148-70071-50",
+      "relationships": {
+        "added_routes": {
+          "data": []
+        },
+        "route": {
+          "data": {
+            "id": "Red",
+            "type": "route"
+          }
+        },
+        "stop": {
+          "data": {
+            "id": "70071",
+            "type": "stop"
+          }
+        },
+        "trip": {
+          "data": {
+            "id": "77871148",
+            "type": "trip"
+          }
+        }
+      },
+      "type": "schedule"
+    },
+    {
+      "attributes": {
+        "arrival_time": "2026-11-17T19:01:00-05:00",
+        "departure_time": "2026-11-17T19:01:00-05:00",
+        "direction_id": 1,
+        "stop_sequence": 170
+      },
+      "id": "schedule-77871147-70072-170",
+      "relationships": {
+        "added_routes": {
+          "data": []
+        },
+        "route": {
+          "data": {
+            "id": "Red",
+            "type": "route"
+          }
+        },
+        "stop": {
+          "data": {
+            "id": "70072",
+            "type": "stop"
+          }
+        },
+        "trip": {
+          "data": {
+            "id": "77871147",
+            "type": "trip"
+          }
+        }
+      },
+      "type": "schedule"
+    },
+    {
+      "attributes": {
+        "arrival_time": "2026-11-17T19:10:00-05:00",
+        "departure_time": "2026-11-17T19:10:00-05:00",
+        "direction_id": 1,
+        "stop_sequence": 170
+      },
+      "id": "schedule-77871155-70072-170",
+      "relationships": {
+        "added_routes": {
+          "data": []
+        },
+        "route": {
+          "data": {
+            "id": "Red",
+            "type": "route"
+          }
+        },
+        "stop": {
+          "data": {
+            "id": "70072",
+            "type": "stop"
+          }
+        },
+        "trip": {
+          "data": {
+            "id": "77871155",
+            "type": "trip"
+          }
+        }
+      },
+      "type": "schedule"
+    },
+    {
+      "attributes": {
+        "arrival_time": "2026-11-17T19:08:00-05:00",
+        "departure_time": "2026-11-17T19:08:00-05:00",
+        "direction_id": 0,
+        "stop_sequence": 15
+      },
+      "id": "schedule-78181059-97-15",
+      "relationships": {
+        "added_routes": {
+          "data": []
+        },
+        "route": {
+          "data": {
+            "id": "1",
+            "type": "route"
+          }
+        },
+        "stop": {
+          "data": {
+            "id": "97",
+            "type": "stop"
+          }
+        },
+        "trip": {
+          "data": {
+            "id": "78181059",
+            "type": "trip"
+          }
+        }
+      },
+      "type": "schedule"
+    },
+    {
+      "attributes": {
+        "arrival_time": "2026-11-17T19:20:00-05:00",
+        "departure_time": "2026-11-17T19:20:00-05:00",
+        "direction_id": 0,
+        "stop_sequence": 15
+      },
+      "id": "schedule-78181061-97-15",
+      "relationships": {
+        "added_routes": {
+          "data": []
+        },
+        "route": {
+          "data": {
+            "id": "1",
+            "type": "route"
+          }
+        },
+        "stop": {
+          "data": {
+            "id": "97",
+            "type": "stop"
+          }
+        },
+        "trip": {
+          "data": {
+            "id": "78181061",
+            "type": "trip"
+          }
+        }
+      },
+      "type": "schedule"
+    }
+  ],
+  "included": [
+    {
+      "attributes": {
+        "headsign": "Harvard"
+      },
+      "id": "78181061",
+      "links": {
+        "self": "/trips/78181061"
+      },
+      "relationships": {},
+      "type": "trip"
+    },
+    {
+      "attributes": {
+        "headsign": "Ashmont"
+      },
+      "id": "77871148",
+      "links": {
+        "self": "/trips/77871148"
+      },
+      "relationships": {},
+      "type": "trip"
+    },
+    {
+      "attributes": {
+        "headsign": "Harvard"
+      },
+      "id": "78181059",
+      "links": {
+        "self": "/trips/78181059"
+      },
+      "relationships": {},
+      "type": "trip"
+    },
+    {
+      "attributes": {
+        "headsign": "Alewife"
+      },
+      "id": "77871147",
+      "links": {
+        "self": "/trips/77871147"
+      },
+      "relationships": {},
+      "type": "trip"
+    },
+    {
+      "attributes": {
+        "color": "FFC72C",
+        "long_name": "Harvard Square - Nubian Station",
+        "short_name": "1",
+        "text_color": "000000",
+        "type": 3
+      },
+      "id": "1",
+      "links": {
+        "self": "/routes/1"
+      },
+      "relationships": {},
+      "type": "route"
+    },
+    {
+      "attributes": {
+        "color": "DA291C",
+        "long_name": "Red Line",
+        "short_name": "",
+        "text_color": "FFFFFF",
+        "type": 1
+      },
+      "id": "Red",
+      "links": {
+        "self": "/routes/Red"
+      },
+      "relationships": {},
+      "type": "route"
+    },
+    {
+      "attributes": {
+        "headsign": "Ashmont"
+      },
+      "id": "77871140",
+      "links": {
+        "self": "/trips/77871140"
+      },
+      "relationships": {},
+      "type": "trip"
+    },
+    {
+      "attributes": {
+        "headsign": "Alewife"
+      },
+      "id": "77871155",
+      "links": {
+        "self": "/trips/77871155"
+      },
+      "relationships": {},
+      "type": "trip"
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "data": [
+    {
+      "attributes": {
+        "effect": "DELAY",
+        "header": "Route 85 is experiencing delays of about 20 minutes due to traffic.",
+        "informed_entity": [
+          {
+            "route_type": 3,
+            "route": "85",
+            "activities": [
+              "BOARD",
+              "EXIT",
+              "RIDE"
+            ]
+          }
+        ]
+      },
+      "id": "1046031",
+      "links": {
+        "self": "/alerts/1046031"
+      },
+      "type": "alert"
+    },
+    {
+      "attributes": {
+        "effect": "ELEVATOR_CLOSURE",
+        "header": "Elevator 123 (Street to Mezzanine) at Kendall/MIT is out of service.",
+        "informed_entity": [
+          {
+            "route_type": 1,
+            "route": "Red",
+            "stop": "place-knncl",
+            "activities": [
+              "USING_WHEELCHAIR"
+            ]
+          }
+        ]
+      },
+      "id": "1046032",
+      "type": "alert"
+    },
+    {
+      "attributes": {
+        "effect": "STOP_CLOSURE",
+        "header": "Stop 97 is closed.",
+        "informed_entity": [
+          {
+            "route_type": 3,
+            "route": "1",
+            "stop": "97",
+            "activities": [
+              "BOARD"
+            ]
+          }
+        ]
+      },
+      "id": "1046033",
+      "type": "alert"
+    }
+  ]
+}
