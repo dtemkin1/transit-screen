@@ -1,8 +1,9 @@
 import { haversineM } from './geo';
 import type { BikeStation, LatLon } from './types';
 
-export const GBFS_BASE = 'https://gbfs.lyft.com/gbfs/2.3/bos/en/';
+export const GBFS_AUTODISCOVERY = 'https://gbfs.bluebikes.com/gbfs/gbfs.json';
 
+interface Feed { name: string; url: string }
 interface InfoRow { station_id: string; name: string; lat: number; lon: number }
 interface StatusRow {
   station_id: string;
@@ -15,6 +16,16 @@ interface StatusRow {
 
 const stationsOf = <T>(json: unknown): T[] =>
   (json as { data?: { stations?: T[] } } | null)?.data?.stations ?? [];
+
+export function resolveFeedUrls(json: unknown): { stationInformation: string; stationStatus: string } {
+  const feeds = (json as { data?: { en?: { feeds?: Feed[] } } } | null)?.data?.en?.feeds ?? [];
+  const find = (name: string): string => {
+    const url = feeds.find((f) => f.name === name)?.url;
+    if (!url) throw new Error(`BlueBikes GBFS discovery: no "${name}" feed in data.en.feeds`);
+    return url;
+  };
+  return { stationInformation: find('station_information'), stationStatus: find('station_status') };
+}
 
 export function parseStationInfo(json: unknown, origin: LatLon, radiusM: number): BikeStation[] {
   return stationsOf<InfoRow>(json)

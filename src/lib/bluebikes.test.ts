@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { GBFS_BASE, applyStatus, parseStationInfo } from './bluebikes';
+import { GBFS_AUTODISCOVERY, applyStatus, parseStationInfo, resolveFeedUrls } from './bluebikes';
 import { haversineM } from './geo';
+import discovery from '../test/fixtures/gbfs-discovery.json';
 import stationInfo from '../test/fixtures/gbfs-station_information.json';
 import stationStatus from '../test/fixtures/gbfs-station_status.json';
 
@@ -8,7 +9,8 @@ const W41 = { lat: 42.35982, lon: -71.0961 };
 const RADIUS_M = 500;
 
 const MASS_AVE_ALBANY = 'f6df6c1a-064f-428a-951c-2069a081b9df'; // 178 m from W41, 2 bikes
-const LAFAYETTE_SQUARE = 'f8349824-0de8-11e7-991c-3863bb43a7d0'; // 547 m from W41, 1 bike, 1 e-bike
+const MIT_AMHERST = 'f83493c0-0de8-11e7-991c-3863bb43a7d0'; // 287 m from W41, 2 bikes, 1 e-bike
+const LAFAYETTE_SQUARE = 'f8349824-0de8-11e7-991c-3863bb43a7d0'; // 547 m from W41, empty
 const MIT_STATA = 'f8349de4-0de8-11e7-991c-3863bb43a7d0'; // 481 m from W41, empty
 
 describe('parseStationInfo', () => {
@@ -35,8 +37,32 @@ describe('parseStationInfo', () => {
     });
   });
 
-  it('exposes the GBFS base URL', () => {
-    expect(GBFS_BASE).toBe('https://gbfs.lyft.com/gbfs/2.3/bos/en/');
+});
+
+describe('resolveFeedUrls', () => {
+  it('exposes the official BlueBikes autodiscovery URL', () => {
+    expect(GBFS_AUTODISCOVERY).toBe('https://gbfs.bluebikes.com/gbfs/gbfs.json');
+  });
+
+  it('returns the station_information and station_status feed URLs from data.en.feeds', () => {
+    expect(resolveFeedUrls(discovery)).toEqual({
+      stationInformation: 'https://gbfs.lyft.com/gbfs/1.1/bos/en/station_information.json',
+      stationStatus: 'https://gbfs.lyft.com/gbfs/1.1/bos/en/station_status.json',
+    });
+  });
+
+  it('throws a clear error when station_information is missing', () => {
+    const feeds = discovery.data.en.feeds.filter((f) => f.name !== 'station_information');
+    expect(() => resolveFeedUrls({ data: { en: { feeds } } })).toThrow(/station_information/);
+  });
+
+  it('throws a clear error when station_status is missing', () => {
+    const feeds = discovery.data.en.feeds.filter((f) => f.name !== 'station_status');
+    expect(() => resolveFeedUrls({ data: { en: { feeds } } })).toThrow(/station_status/);
+  });
+
+  it('throws when the discovery document has no English feeds', () => {
+    expect(() => resolveFeedUrls({})).toThrow(/station_information/);
   });
 });
 
@@ -48,7 +74,8 @@ describe('applyStatus', () => {
     const byId = new Map(out.map((s) => [s.id, s]));
 
     expect(byId.get(MASS_AVE_ALBANY)).toMatchObject({ bikes: 2, ebikes: 0, docks: 16, renting: true });
-    expect(byId.get(LAFAYETTE_SQUARE)).toMatchObject({ bikes: 1, ebikes: 1, docks: 13, renting: true });
+    expect(byId.get(MIT_AMHERST)).toMatchObject({ bikes: 2, ebikes: 1, docks: 27, renting: true });
+    expect(byId.get(LAFAYETTE_SQUARE)).toMatchObject({ bikes: 0, ebikes: 0, docks: 13, renting: true });
     expect(byId.get(MIT_STATA)).toMatchObject({ bikes: 0, ebikes: 0, docks: 34, renting: true });
   });
 

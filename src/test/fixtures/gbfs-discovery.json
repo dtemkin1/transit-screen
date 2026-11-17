@@ -1,0 +1,27 @@
+{
+  "last_updated": 1794959662,
+  "ttl": 60,
+  "version": "1.1",
+  "data": {
+    "en": {
+      "feeds": [
+        {
+          "name": "gbfs",
+          "url": "https://gbfs.lyft.com/gbfs/1.1/bos/gbfs.json"
+        },
+        {
+          "name": "system_information",
+          "url": "https://gbfs.lyft.com/gbfs/1.1/bos/en/system_information.json"
+        },
+        {
+          "name": "station_information",
+          "url": "https://gbfs.lyft.com/gbfs/1.1/bos/en/station_information.json"
+        },
+        {
+          "name": "station_status",
+          "url": "https://gbfs.lyft.com/gbfs/1.1/bos/en/station_status.json"
+        }
+      ]
+    }
+  }
+}
