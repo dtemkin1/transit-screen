@@ -145,10 +145,10 @@ export function activeServiceIds(s: PassioStatic, sd: string): Set<string> {
   return ids;
 }
 
-function previousDate(sd: string): string {
-  const prev = new Date(Date.UTC(+sd.slice(0, 4), +sd.slice(4, 6) - 1, +sd.slice(6, 8)) - 86_400_000);
+function shiftDate(sd: string, days: number): string {
+  const d = new Date(Date.UTC(+sd.slice(0, 4), +sd.slice(4, 6) - 1, +sd.slice(6, 8)) + days * 86_400_000);
   const p = (n: number) => String(n).padStart(2, '0');
-  return `${prev.getUTCFullYear()}${p(prev.getUTCMonth() + 1)}${p(prev.getUTCDate())}`;
+  return `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}`;
 }
 
 export function scheduledDepartures(
@@ -156,7 +156,8 @@ export function scheduledDepartures(
 ): Departure[] {
   const today = serviceDate(nowMs);
   const out: Departure[] = [];
-  for (const sd of [previousDate(today), today]) {
+  // serviceDate() lags the calendar date before 03:00, so also look one day ahead.
+  for (const sd of [shiftDate(today, -1), today, shiftDate(today, 1)]) {
     const active = activeServiceIds(s, sd);
     if (active.size === 0) continue;
     for (const [tripId, trip] of s.trips) {

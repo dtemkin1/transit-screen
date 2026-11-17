@@ -80,6 +80,38 @@ describe('scheduledDepartures', () => {
   it('excludes last stop of trip', () => {
     expect(scheduledDepartures(s, new Set(['D']), Date.parse('2026-11-17T12:00:00Z'), 3600e3)).toEqual([]);
   });
+  describe('around the 03:00 service-day cutoff', () => {
+    const early = parsePassioZip(
+      toZip({
+        ...files,
+        'trips.txt': 'route_id,service_id,trip_id,trip_headsign,direction_id\nr1,WK,t3,,\nr1,WK,t4,,\nr1,WK,t5,,\n',
+        'stop_times.txt': [
+          'trip_id,arrival_time,departure_time,stop_id,stop_sequence,shape_dist_traveled',
+          't3,03:10:00,03:10:00,A,1,0', 't3,03:20:00,03:20:00,B,2,100',
+          't4,00:30:00,00:30:00,A,1,0', 't4,00:40:00,00:40:00,B,2,100',
+          't5,12:00:00,12:00:00,A,1,0', 't5,12:10:00,12:10:00,B,2,100',
+        ].join('\n'),
+      }),
+      'mit',
+      'shuttle',
+    );
+    const ids = (nowIso: string, win = 3600e3) =>
+      scheduledDepartures(early, new Set(['A']), Date.parse(nowIso), win).map((d) => d.tripId);
+
+    it('finds a 03:10 trip of the calendar date at 02:30', () => {
+      expect(ids('2026-11-18T07:30:00Z')).toContain('t3');
+    });
+    it('finds a 00:30 trip of the calendar date at 00:20', () => {
+      expect(ids('2026-11-18T05:20:00Z')).toContain('t4');
+    });
+    it('does not double-count a trip running on consecutive days', () => {
+      const deps = scheduledDepartures(early, new Set(['A']), Date.parse('2026-11-17T09:00:00Z'), 48 * 3600e3);
+      const keys = deps.map((d) => `${d.tripId}@${d.departureTime}`);
+      expect(new Set(keys).size).toBe(keys.length);
+      expect(deps.filter((d) => d.tripId === 't5')).toHaveLength(2);
+    });
+  });
+
   it('respects the window', () => {
     const deps = scheduledDepartures(s, new Set(['A']), Date.parse('2026-11-17T12:31:00Z'), 3600e3);
     expect(deps.map((d) => d.tripId)).not.toContain('t1');
@@ -113,6 +145,31 @@ describe('worker-client', () => {
     expect(Array.from(await fetchBytes('http://w/x'))).toEqual([1, 2]);
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response('', { status: 404 })));
     await expect(fetchBytes('http://w/x')).rejects.toThrow();
+  });
+  it('throws when headers arrive but the body stalls past the timeout', async () => {
+    vi.stubGlobal('fetch', (_u: string, init: RequestInit) => {
+      const body = new ReadableStream({
+        start(ctrl) {
+          init.signal!.addEventListener('abort', () => ctrl.error(new Error('aborted')));
+        },
+      });
+      return Promise.resolve(new Response(body));
+    });
+    await expect(fetchJson('http://w/x', undefined, 20)).rejects.toThrow();
+    await expect(fetchBytes('http://w/x', 20)).rejects.toThrow();
+  });
+  it('honors a caller-supplied signal', async () => {
+    vi.stubGlobal(
+      'fetch',
+      (_u: string, init: RequestInit) =>
+        new Promise((_, rej) => {
+          init.signal!.addEventListener('abort', () => rej(new Error('aborted')));
+        }),
+    );
+    const own = new AbortController();
+    const p = fetchJson('http://w/x', { signal: own.signal });
+    own.abort();
+    await expect(p).rejects.toThrow();
   });
   it('throws on timeout', async () => {
     vi.stubGlobal(
