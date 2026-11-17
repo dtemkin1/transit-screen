@@ -10,3 +10,7 @@ it('metresToDegrees uses 111320 m/deg', () => expect(metresToDegrees(111_320)).t
 it('candidate radius for 15 min = 1170 m', () => expect(candidateRadiusM(15, defaultConfig)).toBe(1170));
 it('fallback walk is ≥ straight line / speed', () =>
   expect(fallbackWalkSec(W41, CENTRAL, defaultConfig)).toBeCloseTo(870, -1));
+it('fallback walk applies the detour factor and speed', () => {
+  const cfg = { ...defaultConfig, walkDetourFactor: 1.5 };
+  expect(fallbackWalkSec(W41, CENTRAL, cfg)).toBeCloseTo((haversineM(W41, CENTRAL) * 1.5) / cfg.walkSpeedMps, 6);
+});

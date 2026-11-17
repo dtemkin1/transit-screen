@@ -39,7 +39,7 @@ function parseYmd(sd: string): { y: number; m: number; d: number } {
   return { y: Number(sd.slice(0, 4)), m: Number(sd.slice(4, 6)), d: Number(sd.slice(6, 8)) };
 }
 
-/** Wall-clock time in TZ to epoch ms. */
+/** Wall-clock time in TZ to epoch ms. Nonexistent local times (spring-forward gap) are not handled; fine for 04:00. */
 function localToEpoch(y: number, m: number, d: number, hour: number): number {
   const naive = Date.UTC(y, m - 1, d, hour);
   let guess = naive - offsetMs(naive);
