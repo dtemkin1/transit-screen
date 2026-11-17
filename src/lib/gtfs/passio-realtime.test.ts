@@ -50,7 +50,7 @@ describe('parseTripUpdates', () => {
     expect(d.length).toBeGreaterThan(0);
     expect(d.every((x) => x.departureTime >= cutoff)).toBe(true);
   });
-  it('skips SKIPPED/NO_DATA (string or numeric), uses arrival when no departure, coerces strings', () => {
+  it('skips SKIPPED/NO_DATA stops (string or numeric), uses arrival when no departure, coerces strings', () => {
     const json = {
       entity: [{
         trip_update: {
@@ -70,7 +70,31 @@ describe('parseTripUpdates', () => {
       }],
     };
     const d = parseTripUpdates(json, s, new Set(['988']), now);
-    expect(d.map((x) => x.departureTime)).toEqual([1794959003 * 1000]);
+    expect(d.map((x) => x.departureTime)).toEqual([1794959003 * 1000, 1794959004 * 1000]);
+  });
+  it('drops CANCELED/DELETED trips (string or numeric) but keeps ADDED/UNSCHEDULED', () => {
+    const mk = (rel: unknown, time: number) => ({
+      trip_update: {
+        trip: { trip_id: '913997', route_id: '63220', schedule_relationship: rel },
+        stop_time_update: [{ stop_id: '988', departure: { time } }],
+      },
+    });
+    const rels = ['CANCELED', 'DELETED', 3, 7, '3', 'ADDED', 'UNSCHEDULED', 1, 2, 0, 'SCHEDULED'];
+    const json = { entity: rels.map((r, i) => mk(r, 1794959100 + i)) };
+    const d = parseTripUpdates(json, s, new Set(['988']), now);
+    expect(d.map((x) => x.departureTime)).toEqual(
+      [5, 6, 7, 8, 9, 10].map((i) => (1794959100 + i) * 1000),
+    );
+  });
+  it('emits no departure at the final stop of a known trip', () => {
+    expect(parseTripUpdates(tripUpdates, s, new Set(['1018']), now)).toEqual([]);
+  });
+  it('matches the final stop by sequence so loop trips still depart from the first stop', () => {
+    const loop = { ...s, stopTimes: new Map([['913997', [
+      { stopId: '988', seq: 1, dep: '07:00:00' }, { stopId: '988', seq: 13, dep: '07:30:00' },
+    ]]]) };
+    const d = parseTripUpdates(tripUpdates, loop, new Set(['988']), now).filter((x) => x.tripId === '913997');
+    expect(d.map((x) => x.departureTime)).toEqual([1794958670 * 1000]);
   });
   it('tolerates garbage input', () => {
     expect(parseTripUpdates(null, s, all, now)).toEqual([]);

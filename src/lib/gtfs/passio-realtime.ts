@@ -23,6 +23,11 @@ function isUnserved(rel: unknown): boolean {
   return rel === 'SKIPPED' || rel === 'NO_DATA' || rel === 1 || rel === 2 || rel === '1' || rel === '2';
 }
 
+// TripDescriptor enum: SCHEDULED 0, ADDED 1, UNSCHEDULED 2, CANCELED 3, DELETED 7.
+function isCanceled(rel: unknown): boolean {
+  return rel === 'CANCELED' || rel === 'DELETED' || rel === 3 || rel === 7 || rel === '3' || rel === '7';
+}
+
 export function parseTripUpdates(
   json: unknown, s: PassioStatic, stopIds: Set<string>, nowMs: number,
 ): Departure[] {
@@ -30,16 +35,19 @@ export function parseTripUpdates(
   for (const entity of arr(obj(json).entity)) {
     const tu = obj(obj(entity).trip_update);
     const trip = obj(tu.trip);
-    if (isUnserved(trip.schedule_relationship)) continue;
+    if (isCanceled(trip.schedule_relationship)) continue;
     const tripId = String(trip.trip_id ?? '');
     const staticTrip = s.trips.get(tripId);
     const routeId = staticTrip?.routeId ?? String(trip.route_id ?? '');
     if (!routeId) continue;
     const headsign = staticTrip?.headsign || s.routes.get(routeId)?.longName || 'Shuttle';
+    const last = s.stopTimes.get(tripId)?.at(-1);
     for (const u of arr(tu.stop_time_update)) {
       const stu = obj(u);
       const stopId = String(stu.stop_id ?? '');
       if (!stopIds.has(stopId) || isUnserved(stu.schedule_relationship)) continue;
+      // No boarding at a trip's final stop (matches scheduledDepartures); sequence disambiguates loops.
+      if (last && last.stopId === stopId && (stu.stop_sequence == null || Number(stu.stop_sequence) === last.seq)) continue;
       const arrival = epochMs(stu.arrival);
       const t = epochMs(stu.departure) ?? arrival;
       if (t === null || t < nowMs) continue;
