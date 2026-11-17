@@ -1,5 +1,5 @@
 import type { Config } from '../config';
-import { candidateRadiusM, metresToDegrees } from './geo';
+import { candidateRadiusM, metresToRadiusDegrees } from './geo';
 import { gtfsTimeToEpoch, serviceDate } from './time';
 import type { Alert, Departure, Mode, RouteInfo, Stop } from './types';
 import { fetchJson, workerUrl } from './worker-client';
@@ -37,7 +37,7 @@ export function chunk<T>(items: readonly T[], size = MAX_IDS_PER_REQUEST): T[][]
 // ---- stops ----
 
 export function stopsUrl(cfg: Config, mode: 'subway' | 'bus'): string {
-  const radius = metresToDegrees(candidateRadiusM(cfg.modes[mode].maxWalkMin, cfg)).toFixed(5);
+  const radius = metresToRadiusDegrees(candidateRadiusM(cfg.modes[mode].maxWalkMin, cfg), cfg.location.lat).toFixed(5);
   return url(cfg, 'stops', {
     'filter[latitude]': String(cfg.location.lat),
     'filter[longitude]': String(cfg.location.lon),

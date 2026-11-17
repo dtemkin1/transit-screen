@@ -26,3 +26,8 @@ export function candidateRadiusM(maxWalkMin: number, cfg: Config): number {
 export function fallbackWalkSec(from: LatLon, to: LatLon, cfg: Config): number {
   return (haversineM(from, to) * cfg.walkDetourFactor) / cfg.walkSpeedMps;
 }
+
+/** Degree-space radius whose circle covers the metre circle at this latitude (sized by longitude degrees, the shorter axis). */
+export function metresToRadiusDegrees(m: number, lat: number): number {
+  return m / (METRES_PER_DEGREE * Math.cos(rad(lat)));
+}

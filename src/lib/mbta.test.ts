@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { defaultConfig } from '../config';
+import { metresToRadiusDegrees } from './geo';
 import {
   SHOWN_EFFECTS, alertsUrl, chunk, fetchMbtaCandidates, parseAlerts, parsePredictions, parseSchedules,
   parseStops, predictionsUrl, schedulesUrl, stopsUrl,
@@ -34,12 +35,12 @@ describe('stops', () => {
   it('radius in degrees', () => {
     const url = new URL(stopsUrl(cfg, 'subway'));
     expect(url.pathname).toBe('/mbta/stops');
-    expect(url.searchParams.get('filter[radius]')).toBe((1170 / 111320).toFixed(5));
+    expect(url.searchParams.get('filter[radius]')).toBe(metresToRadiusDegrees(1170, 42.35982).toFixed(5));
     expect(url.searchParams.get('filter[route_type]')).toBe('0,1');
     expect(url.searchParams.get('include')).toBe('parent_station');
     expect(url.searchParams.get('filter[latitude]')).toBe('42.35982');
     expect(new URL(stopsUrl(cfg, 'bus')).searchParams.get('filter[route_type]')).toBe('3');
-    expect(new URL(stopsUrl(cfg, 'bus')).searchParams.get('filter[radius]')).toBe((390 / 111320).toFixed(5));
+    expect(new URL(stopsUrl(cfg, 'bus')).searchParams.get('filter[radius]')).toBe(metresToRadiusDegrees(390, 42.35982).toFixed(5));
   });
 });
 

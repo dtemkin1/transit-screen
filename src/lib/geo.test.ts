@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest';
-import { haversineM, metresToDegrees, candidateRadiusM, fallbackWalkSec } from './geo';
+import { haversineM, metresToDegrees, metresToRadiusDegrees, candidateRadiusM, fallbackWalkSec } from './geo';
 import { defaultConfig } from '../config';
 
 const W41 = { lat: 42.35982, lon: -71.0961 };
@@ -13,4 +13,9 @@ it('fallback walk is ≥ straight line / speed', () =>
 it('fallback walk applies the detour factor and speed', () => {
   const cfg = { ...defaultConfig, walkDetourFactor: 1.5 };
   expect(fallbackWalkSec(W41, CENTRAL, cfg)).toBeCloseTo((haversineM(W41, CENTRAL) * 1.5) / cfg.walkSpeedMps, 6);
+});
+it('metresToRadiusDegrees scales by longitude degree size at the latitude', () => {
+  expect(metresToRadiusDegrees(111_320, 0)).toBeCloseTo(1, 9);
+  expect(metresToRadiusDegrees(1170, 42.35982)).toBeCloseTo(1170 / (111_320 * Math.cos((42.35982 * Math.PI) / 180)), 9);
+  expect(metresToRadiusDegrees(1170, 42.35982)).toBeGreaterThan(metresToDegrees(1170));
 });
