@@ -3,6 +3,6 @@ main = "src/index.ts"
 compatibility_date = "2025-01-01"
 
 [vars]
-ALLOWED_ORIGINS = "http://localhost:5173,https://dtemkin1.github.io"
+ALLOWED_ORIGINS = "http://localhost:5173,https://dtemkin1.github.io,https://web.mit.edu"
 
 # Secret (set by the owner): wrangler secret put MBTA_API_KEY
