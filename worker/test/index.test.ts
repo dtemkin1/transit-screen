@@ -14,7 +14,10 @@ class FakeCache {
 
 type Call = { url: string; init?: RequestInit }
 
-function setup(responder: (url: string, init?: RequestInit) => Response | Promise<Response>) {
+function setup(
+  responder: (url: string, init?: RequestInit) => Response | Promise<Response>,
+  envOverrides: Partial<Env> = {},
+) {
   const calls: Call[] = []
   const fetchFn = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = input instanceof Request ? input.url : String(input)
@@ -26,6 +29,7 @@ function setup(responder: (url: string, init?: RequestInit) => Response | Promis
   const env: Env = {
     MBTA_API_KEY: 'k',
     ALLOWED_ORIGINS: 'http://localhost:5173,https://dtemkin1.github.io',
+    ...envOverrides,
   }
   const run = (req: Request) =>
     handle(req, env, { fetch: fetchFn, cache: cache as unknown as Cache })
@@ -40,6 +44,15 @@ describe('worker', () => {
     expect(calls).toHaveLength(1)
     expect(calls[0].url).toBe('https://api-v3.mbta.com/predictions?filter[stop]=70071')
     expect(new Headers(calls[0].init?.headers).get('x-api-key')).toBe('k')
+  })
+
+  it.each([[''], [undefined]])('omits the MBTA key header when the secret is %j', async (key) => {
+    const { calls, run } = setup(() => new Response('{"data":[]}', { status: 200 }), {
+      MBTA_API_KEY: key,
+    })
+    const res = await run(new Request('https://w.test/mbta/stops?filter[route_type]=0'))
+    expect(res.status).toBe(200)
+    expect(new Headers(calls[0].init?.headers).has('x-api-key')).toBe(false)
   })
 
   it('rejects non-allow-listed MBTA path', async () => {

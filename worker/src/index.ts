@@ -1,5 +1,6 @@
 export interface Env {
-  MBTA_API_KEY: string
+  /** Unset in local dev without a key; MBTA then serves keyless (lower rate limit). */
+  MBTA_API_KEY?: string
   ALLOWED_ORIGINS: string
 }
 
@@ -78,7 +79,8 @@ async function mbta(req: Request, env: Env, deps: Deps, name: string, search: st
   const ttl = MBTA_TTL[name]
   const key = new Request(`https://cache.local/mbta/${name}${search}`)
   const produce = async () => {
-    const headers: Record<string, string> = { 'x-api-key': env.MBTA_API_KEY }
+    const headers: Record<string, string> = {}
+    if (env.MBTA_API_KEY) headers['x-api-key'] = env.MBTA_API_KEY
     const ims = req.headers.get('If-Modified-Since')
     if (ims) headers['If-Modified-Since'] = ims
     return deps.fetch(`https://api-v3.mbta.com/${name}${search}`, { headers })

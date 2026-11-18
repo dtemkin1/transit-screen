@@ -10,11 +10,11 @@ const lines = (p: BoardPanel) => p.groups.reduce((n, g) => n + (g.header ? 1 : 0
 const shape = (p: BoardPanel) => p.groups.map((g) => g.rows.map((r) => `${r.key}:${r.times.map((t) => t.departureTime / 60_000).join(',')}`));
 
 const sample = () => panel([
-  { header: { name: 'Kendall', walkMin: 10 }, rows: [
+  { header: { name: 'Kendall', walkMin: 10, walkEstimated: false }, rows: [
     row('a', [cell(1, false), cell(12), cell(20)]),
     row('b', [cell(15), cell(25), cell(35)]),
   ] },
-  { header: { name: 'Central', walkMin: 14 }, rows: [
+  { header: { name: 'Central', walkMin: 14, walkEstimated: false }, rows: [
     row('c', [cell(2, false)]),
     row('d', [cell(30), cell(40)]),
   ] },

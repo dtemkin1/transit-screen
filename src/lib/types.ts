@@ -34,8 +34,8 @@ export type PanelStatus = 'ok' | 'delayed' | 'schedule-fallback' | 'unavailable'
 export interface TimeCell { label: string; live: boolean; reachable: boolean; departureTime: number }
 export interface BoardRow {
   key: string; route: RouteInfo; headsign: string;
-  stopName?: string; walkMin?: number;  // set for non-subway rows (closest stop)
+  stopName?: string; walkMin?: number; walkEstimated?: boolean; // set for non-subway rows (closest stop)
   times: TimeCell[];
 }
-export interface BoardGroup { header?: { name: string; walkMin: number }; rows: BoardRow[] }
+export interface BoardGroup { header?: { name: string; walkMin: number; walkEstimated: boolean }; rows: BoardRow[] }
 export interface BoardPanel { id: PanelId; title: string; status: PanelStatus; groups: BoardGroup[] }

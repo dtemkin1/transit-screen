@@ -146,7 +146,10 @@ export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: A
     const rows = [...atStation.keys()].sort()
       .map((k) => makeRow(k, atStation.get(k)!))
       .filter((r): r is BoardRow => r !== null);
-    if (rows.length > 0) subwayGroups.push({ header: { name: station.name, walkMin: Math.ceil(station.walkSec / 60) }, rows });
+    if (rows.length > 0) subwayGroups.push({
+      header: { name: station.name, walkMin: Math.ceil(station.walkSec / 60), walkEstimated: station.walkEstimated },
+      rows,
+    });
   }
   const subwayRoutes = new Set(subwayGroups.flatMap((g) => g.rows.map((r) => r.route)));
   const subwayTitle = subwayRoutes.size === 1 ? [...subwayRoutes][0].longName : 'Subway';
@@ -177,7 +180,7 @@ export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: A
     for (const [key, list] of groupBy(placed, (p) => `${p.d.source}:${p.d.directionKey}`)) {
       const stop = [...serving.get(key)!].sort(byWalk)[0];
       const row = makeRow(key, list.filter((p) => p.stop === stop),
-        { stopName: stop.name, walkMin: Math.ceil(stop.walkSec / 60) });
+        { stopName: stop.name, walkMin: Math.ceil(stop.walkSec / 60), walkEstimated: stop.walkEstimated });
       if (row) rows.push(row);
     }
     rows.sort((a, b) => firstReachable(a) - firstReachable(b) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));

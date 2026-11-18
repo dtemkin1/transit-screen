@@ -82,14 +82,25 @@ describe('buildBoard: subway', () => {
     expect(p.status).toBe('ok');
     // Sorted by walk: Kendall (600 s) before Central (840 s).
     expect(p.groups.map((g) => g.header)).toEqual([
-      { name: 'Stop place-knncl', walkMin: 10 },
-      { name: 'Stop place-cntsq', walkMin: 14 },
+      { name: 'Stop place-knncl', walkMin: 10, walkEstimated: false },
+      { name: 'Stop place-cntsq', walkMin: 14, walkEstimated: false },
     ]);
     const kendall = p.groups[0];
     expect(kendall.rows.map((r) => r.key)).toEqual(['Red:Alewife', 'Red:Ashmont']);
     expect(mins(kendall.rows[0].times)).toEqual([15, 25]);
     expect(kendall.rows[0].times[0]).toMatchObject({ label: '15 min', live: true, reachable: true });
     expect(kendall.rows[0].stopName).toBeUndefined();
+  });
+
+  it('carries walkEstimated to station headers and bus rows', () => {
+    const estimated = (s: Stop) => (s.id === 'place-knncl' || s.id === '1001' ? { ...s, walkEstimated: true } : s);
+    const d = { ...discovered(), stops: STOPS.map(estimated) };
+    const { panels } = buildBoard(input({
+      discovered: d,
+      live: withLive([red('70071', { min: 15 }), red('70069', { min: 20 }), bus1('1001', { min: 9 })]),
+    }));
+    expect(panel(panels, 'subway')!.groups.map((g) => g.header?.walkEstimated)).toEqual([true, false]);
+    expect(panel(panels, 'bus')!.groups[0].rows[0].walkEstimated).toBe(true);
   });
 
   it('title "Subway" when more than one route is shown', () => {
