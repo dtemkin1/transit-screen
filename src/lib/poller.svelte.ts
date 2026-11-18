@@ -16,6 +16,7 @@ export interface PollerDeps {
   setTimeout: typeof setTimeout;
   clearTimeout: typeof clearTimeout;
   reload(): void;
+  isOnline(): Promise<boolean>;
   fetchJson: typeof fetchJson;
   discover(): Promise<Discovered>;
 }
@@ -39,6 +40,8 @@ const REDISCOVER_MS = 10 * MIN;
 const PASSIO_SCHEDULE_MS = MIN;
 const SCHEDULE_WINDOW_MS = 60 * MIN;
 const RELOAD_HOUR = 4;
+const RELOAD_RECHECK_MS = 5 * MIN;
+const ONLINE_TIMEOUT_MS = 5 * SEC;
 
 const PASSIO: ReadonlyArray<{ source: 'mit' | 'ezride'; agency: 'mit' | 'charlesriver' }> = [
   { source: 'mit', agency: 'mit' },
@@ -60,6 +63,8 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
     setTimeout: ((...a: Parameters<typeof setTimeout>) => globalThis.setTimeout(...a)) as typeof setTimeout,
     clearTimeout: ((id: Parameters<typeof clearTimeout>[0]) => globalThis.clearTimeout(id)) as typeof clearTimeout,
     reload: () => location.reload(),
+    // Any HTTP response, even 404, proves the network path works.
+    isOnline: () => fetch(cfg.workerUrl, { signal: AbortSignal.timeout(ONLINE_TIMEOUT_MS) }).then(() => true, () => false),
     fetchJson,
     discover: () => discover(cfg, defaultDiscoveryDeps(cfg)),
     ...overrides,
@@ -212,41 +217,56 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
     state.bikes = d.bikes.map((b) => ({ ...old.get(b.id), ...b }));
   }
 
-  function discoverThenPoll() {
+  let pollsStarted = false;
+
+  async function discoverThenPoll() {
     if (!running) return;
-    deps.discover().then(
-      (d) => {
-        if (!running) return;
-        if (size(d) === 0) {
-          console.warn('poller: discovery found nothing, retrying in 60 s');
-          after(DISCOVERY_RETRY_MS, discoverThenPoll);
-          return;
-        }
-        adopt(d);
-        startPolls();
-        if (isPartial(d)) after(REDISCOVER_MS, rediscover);
-      },
-      (e) => {
-        console.warn('poller: discovery failed, retrying in 60 s', e);
+    try {
+      const d = await deps.discover();
+      if (!running) return;
+      if (size(d) === 0) {
+        console.warn('poller: discovery found nothing, retrying in 60 s');
         after(DISCOVERY_RETRY_MS, discoverThenPoll);
-      },
-    );
+        return;
+      }
+      adopt(d);
+      if (!pollsStarted) {
+        pollsStarted = true;
+        startPolls();
+      }
+      if (isPartial(d)) after(REDISCOVER_MS, rediscover);
+    } catch (e) {
+      console.warn('poller: discovery failed, retrying in 60 s', e);
+      after(DISCOVERY_RETRY_MS, discoverThenPoll);
+    }
   }
 
   /** Retries a partial discovery every 10 min; a smaller result never replaces the current one. */
-  function rediscover() {
+  async function rediscover() {
     if (!running) return;
-    deps.discover().then(
-      (d) => {
-        if (!running) return;
-        if (size(d) >= size(state.discovered!)) adopt(d);
-        if (isPartial(state.discovered!)) after(REDISCOVER_MS, rediscover);
-      },
-      (e) => {
-        console.warn('poller: re-discovery failed, retrying in 10 min', e);
-        after(REDISCOVER_MS, rediscover);
-      },
-    );
+    try {
+      const d = await deps.discover();
+      if (!running) return;
+      if (size(d) >= size(state.discovered!)) adopt(d);
+      if (isPartial(state.discovered!)) after(REDISCOVER_MS, rediscover);
+    } catch (e) {
+      console.warn('poller: re-discovery failed, retrying in 10 min', e);
+      after(REDISCOVER_MS, rediscover);
+    }
+  }
+
+  /** Reloads only when the Worker is reachable, so an offline kiosk keeps its last board instead of an error page. */
+  async function reloadWhenOnline() {
+    if (!running) return;
+    let online = false;
+    try {
+      online = await deps.isOnline();
+    } catch {
+      online = false;
+    }
+    if (!running) return;
+    if (online) deps.reload();
+    else after(RELOAD_RECHECK_MS, reloadWhenOnline);
   }
 
   return {
@@ -261,7 +281,7 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
         after(TICK_MS, tick);
       };
       after(TICK_MS, tick);
-      after(msUntilNext(RELOAD_HOUR, deps.now()), () => deps.reload());
+      after(msUntilNext(RELOAD_HOUR, deps.now()), reloadWhenOnline);
       discoverThenPoll();
     },
     stop() {

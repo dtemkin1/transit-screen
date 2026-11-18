@@ -46,13 +46,15 @@ function harness(handlers: Record<string, Handler | unknown>, disc: () => Promis
     return typeof h === 'function' ? (h as Handler)(url) : h;
   });
   const reload = vi.fn();
+  const online = { value: true };
+  const isOnline = vi.fn(async () => online.value);
   const discover = vi.fn(disc);
   const poller = createPoller(cfg, {
     fetchJson: fetchJson as unknown as PollerDeps['fetchJson'],
-    reload, discover,
+    reload, discover, isOnline,
   });
   const count = (sub: string) => calls.filter((u) => u.includes(sub)).length;
-  return { poller, calls, count, reload, discover };
+  return { poller, calls, count, reload, discover, isOnline, online };
 }
 
 const ok = {
@@ -401,6 +403,87 @@ describe('discovery recovery', () => {
     expect(h.poller.state.discovered?.stops).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(10 * 60_000);
     expect(h.discover).toHaveBeenCalledTimes(3);
+    h.poller.stop();
+  });
+});
+
+describe('error resilience', () => {
+  it('retries initial discovery after 60s when processing the result throws, starting polls once', async () => {
+    let n = 0;
+    const h = harness(ok, async () => (++n === 1
+      ? { ...discovered(), stops: null as unknown as Stop[] }
+      : discovered()));
+    h.poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.count('/mbta/predictions')).toBe(0);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(h.discover).toHaveBeenCalledTimes(2);
+    expect(h.count('/mbta/predictions')).toBe(1);
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(h.count('/mbta/predictions')).toBe(2);
+    h.poller.stop();
+  });
+
+  it('a throw after polls started does not start a second set of polls', async () => {
+    let thrown = false;
+    const bad = discovered();
+    // isPartial() runs after adopt and startPolls; make its first stops.some() throw.
+    bad.stops.some = () => { if (!thrown) { thrown = true; throw new Error('late'); } return true; };
+    const h = harness(ok, async () => bad);
+    h.poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(h.discover).toHaveBeenCalledTimes(2);
+    // One predictions loop: immediate + 20/40/60 s.
+    expect(h.count('/mbta/predictions')).toBe(4);
+    h.poller.stop();
+  });
+
+  it('re-discovery throwing continues the 10 min chain', async () => {
+    let n = 0;
+    const h = harness(ok, async () => {
+      n++;
+      if (n === 2) throw new Error('flaky');
+      if (n === 3) return { ...discovered(), stops: null as unknown as Stop[] };
+      return discovered({ bikeStatusUrl: undefined });
+    });
+    h.poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(h.discover).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(h.discover).toHaveBeenCalledTimes(3);
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(h.discover).toHaveBeenCalledTimes(4);
+    h.poller.stop();
+  });
+});
+
+describe('reload reachability', () => {
+  it('reloads at 04:00 when online', async () => {
+    const h = harness(ok);
+    h.poller.start();
+    await vi.advanceTimersByTimeAsync(16 * 3_600_000);
+    expect(h.isOnline).toHaveBeenCalledTimes(1);
+    expect(h.reload).toHaveBeenCalledTimes(1);
+    h.poller.stop();
+  });
+
+  it('while offline, re-checks every 5 min and reloads once online', async () => {
+    const h = harness(ok);
+    h.online.value = false;
+    h.poller.start();
+    await vi.advanceTimersByTimeAsync(16 * 3_600_000);
+    expect(h.isOnline).toHaveBeenCalledTimes(1);
+    expect(h.reload).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(h.isOnline).toHaveBeenCalledTimes(2);
+    expect(h.reload).not.toHaveBeenCalled();
+    h.online.value = true;
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(h.reload).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(30 * 60_000);
+    expect(h.reload).toHaveBeenCalledTimes(1);
     h.poller.stop();
   });
 });
