@@ -37,7 +37,7 @@
     {/if}
   </span>
   <span class="times">
-    {#each times as { cell, text }, i (cell.departureTime)}
+    {#each times as { cell, text }, i (i)}
       {#if i > 0}<span class="sep">,</span>{/if}<span
         class="t"
         class:scheduled={!cell.live}

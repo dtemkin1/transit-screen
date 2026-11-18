@@ -56,7 +56,7 @@
     {:else if children}
       {@render children(maxLines)}
     {:else}
-      {#each shown.groups as group, gi (group.header?.name ?? gi)}
+      {#each shown.groups as group, gi (gi)}
         {#if group.header}
           <div class="line station">
             <span class="station-name">{group.header.name}</span>

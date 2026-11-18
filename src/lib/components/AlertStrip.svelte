@@ -1,18 +1,11 @@
 <script lang="ts">
+  import { createRotation } from '../rotation.svelte';
   import type { Alert } from '../types';
 
   let { alerts }: { alerts: Alert[] } = $props();
 
-  const ROTATE_MS = 10_000;
-  let tick = $state(0);
-
-  $effect(() => {
-    if (alerts.length < 2) return;
-    const id = setInterval(() => tick++, ROTATE_MS);
-    return () => clearInterval(id);
-  });
-
-  const index = $derived(alerts.length > 0 ? tick % alerts.length : 0);
+  const rotation = createRotation(() => alerts.length, 10_000);
+  const index = $derived(rotation.index);
   const current = $derived(alerts[index]);
 </script>
 
