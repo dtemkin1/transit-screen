@@ -210,11 +210,24 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
   const isPartial = (d: Discovered) =>
     !d.stops.some((s) => s.source === 'mbta') || !d.passio.mit || !d.passio.ezride || !d.bikeStatusUrl;
 
-  /** Adopts a discovery result, keeping the last known bike counts until the next status poll. */
+  const polledSources = (d: Discovered): Source[] => [
+    ...(mbtaPlatformIds(d).length > 0 ? (['mbta'] as const) : []),
+    ...PASSIO.filter(({ source }) => d.passio[source]).map(({ source }) => source),
+    ...(d.bikeStatusUrl ? (['bluebikes'] as const) : []),
+  ];
+
+  /**
+   * Adopts a discovery result, keeping the last known bike counts until the next status poll.
+   * A source polled for the first time counts as fresh from now, so its panel does not say
+   * "Live data unavailable" before the first poll lands; if its polls keep failing it ages as usual.
+   */
   function adopt(d: Discovered) {
     const old = new Map(state.bikes.map((b) => [b.id, b]));
     state.discovered = d;
     state.bikes = d.bikes.map((b) => ({ ...old.get(b.id), ...b }));
+    for (const s of polledSources(d)) {
+      if (state.health[s].lastOk === null) markOk(s);
+    }
   }
 
   let pollsStarted = false;

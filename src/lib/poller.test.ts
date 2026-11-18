@@ -159,7 +159,8 @@ describe('poller', () => {
     const h = harness({ ...ok, '/mbta/predictions': () => { throw new Error('down'); } });
     h.poller.start();
     await vi.advanceTimersByTimeAsync(0);
-    expect(h.poller.state.health.mbta.lastOk).toBeNull();
+    // Seeded when polls start, never advanced by the failing poll.
+    expect(h.poller.state.health.mbta.lastOk).toBe(START);
     expect(h.poller.state.health.bluebikes.lastOk).toBe(START);
     expect(h.poller.state.scheduled.mbta.length).toBeGreaterThan(0);
     await vi.advanceTimersByTimeAsync(60_000);
@@ -177,6 +178,18 @@ describe('poller', () => {
     h.poller.start();
     await vi.advanceTimersByTimeAsync(0);
     expect(h.poller.state.health.mbta.lastOk).toBe(START);
+    h.poller.stop();
+  });
+
+  it('seeds lastOk at the start time for polled sources only, before any poll succeeds', async () => {
+    const h = harness({}, async () => discovered({ bikeStatusUrl: undefined }));
+    h.poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.poller.state.discovered).toBeDefined();
+    expect(h.poller.state.health.mbta.lastOk).toBe(START);
+    expect(h.poller.state.health.bluebikes.lastOk).toBeNull();
+    expect(h.poller.state.health.mit.lastOk).toBeNull();
+    expect(h.poller.state.health.ezride.lastOk).toBeNull();
     h.poller.stop();
   });
 
@@ -389,6 +402,21 @@ describe('discovery recovery', () => {
     // Complete now: no further re-discovery.
     await vi.advanceTimersByTimeAsync(30 * 60_000);
     expect(h.discover).toHaveBeenCalledTimes(2);
+    h.poller.stop();
+  });
+
+  it('seeds lastOk for a source that becomes pollable after a swap, keeping existing ones', async () => {
+    let n = 0;
+    const h = harness({}, async () => (++n === 1 ? discovered({ bikeStatusUrl: undefined }) : full()));
+    h.poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.poller.state.health.bluebikes.lastOk).toBeNull();
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(h.discover).toHaveBeenCalledTimes(2);
+    expect(h.poller.state.health.bluebikes.lastOk).toBe(START + 10 * 60_000);
+    expect(h.poller.state.health.mit.lastOk).toBe(START + 10 * 60_000);
+    // mbta was already seeded and every poll since has failed: it is not refreshed by the swap.
+    expect(h.poller.state.health.mbta.lastOk).toBe(START);
     h.poller.stop();
   });
 
