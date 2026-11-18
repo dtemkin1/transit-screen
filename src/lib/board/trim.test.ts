@@ -26,23 +26,27 @@ describe('trimPanel', () => {
     expect(trimPanel(p, 6)).toEqual(p);
   });
 
-  it('trims in order: unreachable, times, rows', () => {
-    // Step 1: dropping unreachable cells empties row c → 5 lines.
-    const s1 = trimPanel(sample(), 5);
-    expect(shape(s1)).toEqual([['a:12,20', 'b:15,25,35'], ['d:30,40']]);
+  it('one line over drops exactly one row; the others keep all their times', () => {
+    // Row c has no reachable time, so it goes first even though its time is earliest.
+    const p = trimPanel(sample(), 5);
+    expect(shape(p)).toEqual([['a:1,12,20', 'b:15,25,35'], ['d:30,40']]);
+    expect(lines(p)).toBe(5);
+  });
 
-    // Step 2 reduces to 2 then 1 time, which saves no lines; step 3 drops the
-    // row whose first time is latest (d, 30), and its now-empty group goes too.
-    const s3 = trimPanel(sample(), 4);
-    expect(shape(s3)).toEqual([['a:12', 'b:15']]);
-    expect(lines(s3)).toBe(3);
+  it('then drops rows whose next reachable departure is furthest, with empty groups and headers', () => {
+    // d (30) goes and takes the Central header with it.
+    const p4 = trimPanel(sample(), 4);
+    expect(shape(p4)).toEqual([['a:1,12,20', 'b:15,25,35']]);
+    expect(lines(p4)).toBe(3);
 
-    const s4 = trimPanel(sample(), 2);
-    expect(shape(s4)).toEqual([['a:12']]);
+    // b's next reachable (15) is later than a's (12, past the unreachable 1).
+    expect(shape(trimPanel(sample(), 2))).toEqual([['a:1,12,20']]);
   });
 
   it('drops everything when nothing fits', () => {
+    expect(trimPanel(sample(), 1).groups).toEqual([]);
     expect(trimPanel(sample(), 0).groups).toEqual([]);
+    expect(trimPanel(sample(), -1).groups).toEqual([]);
   });
 
   it('does not mutate the input', () => {

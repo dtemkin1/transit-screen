@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildBoard, type BoardInput } from './build';
 import type { Discovered } from '../discovery';
+import type { PassioStatic } from '../gtfs/passio-static';
 import type { Alert, BikeStation, BoardPanel, Departure, Mode, RouteInfo, Source, Stop } from '../types';
 
 const NOW = 1_800_000_000_000;
@@ -20,6 +21,7 @@ const STOPS: Stop[] = [
   stop('mbta', 'bus', '1002', 200),
   stop('ezride', 'ezride', 'e1', 300),
   stop('mit', 'shuttle', 'm1', 100),
+  stop('mit', 'shuttle', 'm2', 300),
 ];
 const ROUTES = [
   route('mbta', 'subway', 'Red', 'Red Line'),
@@ -136,12 +138,45 @@ describe('buildBoard: staleness and merge', () => {
     expect(times[0].live).toBe(false);
   });
 
-  it('stale live with no schedule shows nothing', () => {
+  it('stale live with no schedule keeps the panel, empty, as unavailable', () => {
     const { panels } = buildBoard(input({
       health: { ...input().health, mbta: { lastOk: null } },
       live: withLive([red('70071', { min: 12 })]),
     }));
-    expect(panel(panels, 'subway')).toBeUndefined();
+    // MBTA bus stops are discovered too, so the bus panel also reports it.
+    expect(panels).toEqual([
+      { id: 'subway', title: 'Subway', status: 'unavailable', groups: [] },
+      { id: 'bus', title: 'Buses', status: 'unavailable', groups: [] },
+    ]);
+  });
+
+  it('schedule fallback with nothing in the window keeps the panel, empty', () => {
+    const { panels } = buildBoard(input({
+      health: { ...input().health, mit: { lastOk: null } },
+      scheduled: { ...empty(), mit: [dep('mit', 'shuttle', 'tech', 'm1')({ min: 90, live: false })] },
+    }));
+    expect(panels).toEqual([{ id: 'shuttle', title: 'MIT Shuttles', status: 'schedule-fallback', groups: [] }]);
+  });
+
+  it('no empty panel for a failing source without discovered stops', () => {
+    const { panels } = buildBoard(input({
+      discovered: { ...discovered(), stops: STOPS.filter((s) => s.mode !== 'shuttle') },
+      health: { ...input().health, mit: { lastOk: null } },
+    }));
+    expect(panels).toEqual([]);
+  });
+
+  it('scheduled departure is dropped whenever live data has its trip at that stop', () => {
+    // t1 runs 45 min late: its live prediction is beyond the window, so the key
+    // falls back to schedule, but t1's on-time scheduled copy must not appear.
+    const { panels } = buildBoard(input({
+      live: withLive([red('70071', { min: 65, trip: 't1' })]),
+      scheduled: withLive([
+        red('70071', { min: 20, trip: 't1', live: false }),
+        red('70071', { min: 40, trip: 't2', live: false }),
+      ]),
+    }));
+    expect(mins(panel(panels, 'subway')!.groups[0].rows[0].times)).toEqual([40]);
   });
 
   it('delayed source still shows live times', () => {
@@ -170,7 +205,7 @@ describe('buildBoard: staleness and merge', () => {
     ]);
   });
 
-  it('scheduled departure within 2 min of a live one for the same trip is dropped', () => {
+  it('scheduled copy of a trip live data says has left is dropped', () => {
     // The live prediction for trip t1 has already left (outside the window), so the
     // key falls back to schedule — but t1's scheduled copy must not reappear.
     const { panels } = buildBoard(input({
@@ -192,7 +227,6 @@ describe('buildBoard: bus and shuttle', () => {
         bus1('1001', { min: 9 }),
         bus1('1001', { min: 19 }),
         bus1('1002', { min: 10, dir: '1', headsign: 'Dudley' }),
-        bus1('1001', { min: -2, dir: '1', headsign: 'Dudley' }), // past: 1001 does not serve dir 1 in window
       ]),
     }));
     const p = panel(panels, 'bus')!;
@@ -204,6 +238,43 @@ describe('buildBoard: bus and shuttle', () => {
       ['mbta:1:0', 'Harvard', 'Stop 1001', 2, [9, 19]],
       ['mbta:1:1', 'Dudley', 'Stop 1002', 4, [10]],
     ]);
+  });
+
+  it('closest stop stays put when its departure leaves the window (no flip to a farther stop)', () => {
+    const live = withLive([bus1('1001', { min: 3 }), bus1('1002', { min: 15 })]);
+    const first = panel(buildBoard(input({ live })).panels, 'bus')!.groups[0].rows;
+    expect(first.map((r) => [r.stopName, mins(r.times)])).toEqual([['Stop 1001', [3]]]);
+
+    // Five minutes later 1001's bus has gone; the feed still lists it at 1001.
+    const later = buildBoard(input({ live, nowMs: NOW + 5 * MIN })).panels;
+    expect(panel(later, 'bus')).toBeUndefined();
+  });
+
+  it('a raw scheduled departure outside the window still anchors the row to its stop', () => {
+    const { panels } = buildBoard(input({
+      live: withLive([bus1('1002', { min: 15 })]),
+      scheduled: withLive([bus1('1001', { min: 75, live: false })]),
+    }));
+    expect(panel(panels, 'bus')).toBeUndefined();
+  });
+
+  it('Passio static stop service anchors the row; a trip\'s last stop does not count', () => {
+    const passio = (order: string[]): PassioStatic => ({
+      source: 'mit', mode: 'shuttle', stops: new Map(), routes: new Map(),
+      trips: new Map([['t1', { routeId: 'tech', serviceId: 's', headsign: 'Kendall' }]]),
+      stopTimes: new Map([['t1', order.map((stopId, i) => ({ stopId, seq: i + 1, dep: '08:00:00' }))]]),
+      calendar: new Map(), calendarDates: [],
+    });
+    const live = withLive([], {
+      mit: [dep('mit', 'shuttle', 'tech', 'm2')({ min: 10, dir: 'Kendall', headsign: 'Kendall' })],
+    });
+    // m1 (closer) is served by the trip: the row belongs to m1, which has no times.
+    const served = buildBoard(input({ live, discovered: { ...discovered(), passio: { mit: passio(['m1', 'm2']) } } }));
+    expect(panel(served.panels, 'shuttle')).toBeUndefined();
+
+    // m1 is only the trip's last stop (drop-off): the row stays at m2.
+    const dropOff = buildBoard(input({ live, discovered: { ...discovered(), passio: { mit: passio(['m2', 'm1']) } } }));
+    expect(panel(dropOff.panels, 'shuttle')!.groups[0].rows.map((r) => r.stopName)).toEqual(['Stop m2']);
   });
 
   it('bus rows sorted by first reachable departure; mbta and ezride share the panel', () => {

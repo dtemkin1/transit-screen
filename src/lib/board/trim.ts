@@ -9,29 +9,27 @@ const compact = (groups: BoardGroup[]): BoardGroup[] =>
     .map((g) => ({ ...g, rows: g.rows.filter((r) => r.times.length > 0) }))
     .filter((g) => g.rows.length > 0);
 
-const mapRows = (groups: BoardGroup[], f: (r: BoardRow) => BoardRow): BoardGroup[] =>
-  compact(groups.map((g) => ({ ...g, rows: g.rows.map(f) })));
+const nextReachable = (r: BoardRow) => r.times.find((t) => t.reachable)?.departureTime ?? Infinity;
 
-/** Cuts a panel down to at most `maxLines` lines (a group header or a row is one line). */
+/**
+ * Cuts a panel down to at most `maxLines` lines (a group header or a row is one line)
+ * by dropping whole rows: those with no reachable time first, then those whose next
+ * reachable departure is furthest away. Groups left empty go with their headers.
+ */
 export function trimPanel(p: BoardPanel, maxLines: number): BoardPanel {
-  let groups = p.groups;
-  const fits = () => lineCount(groups) <= maxLines;
-
-  if (!fits()) groups = mapRows(groups, (r) => ({ ...r, times: r.times.filter((t) => t.reachable) }));
-  for (const n of [2, 1]) {
-    if (!fits()) groups = mapRows(groups, (r) => ({ ...r, times: r.times.slice(0, n) }));
-  }
-  while (!fits() && groups.length > 0) {
-    // Drop the row whose first time is latest (the last such row on ties).
+  if (lineCount(p.groups) <= maxLines) return p;
+  let groups = compact(p.groups);
+  while (lineCount(groups) > maxLines && groups.length > 0) {
+    // Last row wins ties, so earlier rows are kept.
     let drop = { g: 0, r: 0, t: -Infinity };
     for (const [gi, g] of groups.entries()) {
       for (const [ri, r] of g.rows.entries()) {
-        const t = r.times[0].departureTime;
+        const t = nextReachable(r);
         if (t >= drop.t) drop = { g: gi, r: ri, t };
       }
     }
     groups = compact(groups.map((grp, gi) =>
       gi === drop.g ? { ...grp, rows: grp.rows.filter((_, ri) => ri !== drop.r) } : grp));
   }
-  return groups === p.groups ? p : { ...p, groups };
+  return { ...p, groups };
 }

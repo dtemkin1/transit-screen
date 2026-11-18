@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { countdownLabel } from './countdown';
 import type { Departure } from '../types';
 
-interface Opts { dep: number; arr?: number; stopped?: boolean; status?: string }
+interface Opts { dep: number; arr?: number; stopped?: boolean; status?: string; live?: boolean }
 const make = (mode: 'subway' | 'bus') => (o: Opts): Departure => ({
   source: 'mbta', mode, routeId: 'R', stopId: 'p', directionKey: 'R:0', headsign: 'H',
   departureTime: o.dep * 1000,
   arrivalTime: o.arr === undefined ? undefined : o.arr * 1000,
-  live: true, status: o.status, vehicleStoppedHere: o.stopped,
+  live: o.live ?? true, status: o.status, vehicleStoppedHere: o.stopped,
 });
 const sub = make('subway');
 const bus = make('bus');
@@ -24,10 +24,18 @@ describe('countdownLabel', () => {
   it('bus minutes round down', () => expect(countdownLabel(bus({ dep: 600 }), 0)).toBe('10 min'));
   it('bus ignores BRD/ARR', () => expect(countdownLabel(bus({ dep: 45, arr: 10, stopped: true }), 0)).toBe('Now'));
   it('past departure is null', () => expect(countdownLabel(bus({ dep: -5 }), 0)).toBeNull());
-  it('past subway departure is null unless boarding/arriving', () => {
+  it('past subway departure is null outside the 30 s BRD/ARR grace', () => {
     expect(countdownLabel(sub({ dep: -5 }), 0)).toBeNull();
-    expect(countdownLabel(sub({ dep: -5, stopped: true }), 0)).toBe('BRD');
-    expect(countdownLabel(sub({ dep: -5, arr: -40 }), 0)).toBe('ARR');
+    expect(countdownLabel(sub({ dep: -30, stopped: true }), 0)).toBe('BRD');
+    expect(countdownLabel(sub({ dep: -31, stopped: true }), 0)).toBeNull();
+    expect(countdownLabel(sub({ dep: -30, arr: -40 }), 0)).toBe('ARR');
+    expect(countdownLabel(sub({ dep: -31, arr: -40 }), 0)).toBeNull();
+    expect(countdownLabel(sub({ dep: -500, arr: -530 }), 0)).toBeNull();
+  });
+  it('scheduled departure never shows ARR/BRD', () => {
+    expect(countdownLabel(sub({ dep: 20, arr: 10, live: false }), 0)).toBe('1 min');
+    expect(countdownLabel(sub({ dep: 80, stopped: true, live: false }), 0)).toBe('1 min');
+    expect(countdownLabel(sub({ dep: -5, arr: -40, live: false }), 0)).toBeNull();
   });
   it('more than 60 min away is null', () => {
     expect(countdownLabel(bus({ dep: 3600 }), 0)).toBe('60 min');
