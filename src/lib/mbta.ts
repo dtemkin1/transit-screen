@@ -131,7 +131,9 @@ function parseTimed(
     if (a.arrival_time) d.arrivalTime = Date.parse(a.arrival_time);
     if (live) {
       if (a.status) d.status = a.status;
-      const v = vehicles.get(rel(p, 'vehicle') ?? '');
+      const vehicleId = rel(p, 'vehicle');
+      if (vehicleId) d.vehicleId = vehicleId;
+      const v = vehicles.get(vehicleId ?? '');
       d.vehicleStoppedHere = v?.attributes?.current_status === 'STOPPED_AT' && rel(v, 'stop') === stopId;
     }
     departures.push(d);

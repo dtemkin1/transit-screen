@@ -24,6 +24,7 @@ export interface Departure {
   status?: string;         // MBTA prediction status text, shown verbatim
   vehicleStoppedHere?: boolean;
   tripId?: string;
+  vehicleId?: string;      // live only; one vehicle can be predicted on two trips back to back
 }
 export interface Alert { id: string; source: Source; header: string; routeIds: string[]; stopIds: string[] }
 export interface BikeStation {
@@ -31,7 +32,10 @@ export interface BikeStation {
   bikes?: number; ebikes?: number; docks?: number; renting?: boolean;
 }
 export type PanelStatus = 'ok' | 'delayed' | 'schedule-fallback' | 'unavailable';
-export interface TimeCell { label: string; live: boolean; reachable: boolean; departureTime: number }
+export interface TimeCell {
+  label: string; live: boolean; departureTime: number;  // only departures you can walk to in time
+  status?: string;  // MBTA prediction status ("Stopped 5 stops away"), shown beside the countdown
+}
 export interface BoardRow {
   key: string; route: RouteInfo; headsign: string;
   stopName?: string; walkMin?: number; walkEstimated?: boolean; // set for non-subway rows (closest stop)

@@ -26,6 +26,7 @@ describe('parseTripUpdates', () => {
       source: 'mit', mode: 'shuttle', routeId: '63220', stopId: '988', tripId: '913997',
       headsign: 'Kendall', directionKey: '63220:Kendall', live: true,
       departureTime: 1794958670 * 1000, arrivalTime: 1794958669 * 1000,
+      vehicleId: '3009',
     });
   });
   it('filters to discovered stops', () => {

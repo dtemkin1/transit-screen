@@ -40,17 +40,36 @@ function groupBy<T>(items: T[], key: (t: T) => string): Map<string, T[]> {
   return out;
 }
 
-/** ≤ 3 cells in time order; an unreachable time may only lead, and only one. */
-function timeCells(placed: Placed[], nowMs: number): TimeCell[] {
-  const cells = [...placed]
-    .sort((a, b) => a.d.departureTime - b.d.departureTime)
-    .map((p): TimeCell => ({
-      label: p.label, live: p.d.live, departureTime: p.d.departureTime,
-      reachable: p.d.departureTime - nowMs >= p.stop.walkSec * 1000,
-    }));
-  const firstReachable = cells.findIndex((c) => c.reachable);
-  if (firstReachable <= 0) return cells.slice(0, firstReachable === -1 ? 1 : MAX_TIMES);
-  return [cells[0], ...cells.slice(firstReachable, firstReachable + MAX_TIMES - 1)];
+/**
+ * Within a minute, these are one vehicle shown twice and are merged: the same trip reported
+ * twice, the same vehicle on two back-to-back trips (Passio loops), and MBTA "ADDED" trips
+ * predicted beside a scheduled one. Two different vehicles close together both show.
+ */
+const DUPLICATE_WINDOW_MS = 60_000;
+const same = (x?: string, y?: string) => x !== undefined && x === y;
+const isDuplicate = (a: Placed, b: Placed) =>
+  b.d.departureTime - a.d.departureTime < DUPLICATE_WINDOW_MS &&
+  (same(a.d.tripId, b.d.tripId) || same(a.d.vehicleId, b.d.vehicleId) ||
+    [a.d.tripId, b.d.tripId].some((id) => id?.startsWith('ADDED-')));
+
+/**
+ * ≤ 3 cells in time order, with the departure behind the first one (it labels the row).
+ * Departures you can't walk to in time are left out, and duplicates are merged.
+ */
+function timeCells(placed: Placed[], nowMs: number): { cells: TimeCell[]; lead?: Placed } {
+  const shown: Placed[] = [];
+  for (const p of [...placed].sort((a, b) => a.d.departureTime - b.d.departureTime)) {
+    // Compare against the walk shown on screen (rounded up), so the two never contradict.
+    if (p.d.departureTime - nowMs < Math.ceil(p.stop.walkSec / 60) * 60_000) continue;
+    if (shown.some((s) => isDuplicate(s, p))) continue;
+    shown.push(p);
+    if (shown.length === MAX_TIMES) break;
+  }
+  const cells = shown.map((p): TimeCell => {
+    const status = p.d.status?.trim();
+    return { label: p.label, live: p.d.live, departureTime: p.d.departureTime, ...(status ? { status } : {}) };
+  });
+  return { cells, lead: shown[0] };
 }
 
 const passioServingCache = new WeakMap<PassioStatic, Map<string, Set<string>>>();
@@ -70,9 +89,7 @@ function passioServing(p: PassioStatic): Map<string, Set<string>> {
   return out;
 }
 
-function firstReachable(row: BoardRow): number {
-  return row.times.find((t) => t.reachable)?.departureTime ?? Infinity;
-}
+const nextDeparture = (row: BoardRow): number => row.times[0]?.departureTime ?? Infinity;
 
 export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: Alert[] } {
   const { discovered, nowMs, hide } = input;
@@ -130,11 +147,10 @@ export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: A
     if (groups.length > 0 || failing) panels.push({ id, title, status: st, groups });
   };
   const makeRow = (key: string, placed: Placed[], extra: Partial<BoardRow> = {}): BoardRow | null => {
-    const times = timeCells(placed, nowMs);
-    if (times.length === 0) return null;
-    const first = [...placed].sort((a, b) => a.d.departureTime - b.d.departureTime)[0];
+    const { cells: times, lead } = timeCells(placed, nowMs);
+    if (!lead) return null;
     for (const p of placed) { shownStops.add(p.stop); shownRoutes.add(`${p.d.source}:${p.d.routeId}`); }
-    return { key, route: first.route, headsign: first.d.headsign, times, ...extra };
+    return { key, route: lead.route, headsign: lead.d.headsign, times, ...extra };
   };
 
   // Subway: one group per station, rows per route + headsign.
@@ -183,14 +199,14 @@ export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: A
         { stopName: stop.name, walkMin: Math.ceil(stop.walkSec / 60), walkEstimated: stop.walkEstimated });
       if (row) rows.push(row);
     }
-    rows.sort((a, b) => firstReachable(a) - firstReachable(b) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+    rows.sort((a, b) => nextDeparture(a) - nextDeparture(b) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
     return rows.length > 0 ? [{ rows }] : [];
   };
   emit('bus', 'Buses', closestRows(shown.filter((p) => p.d.mode === 'bus' || p.d.mode === 'ezride')));
-  emit('shuttle', 'MIT Shuttles', closestRows(shown.filter((p) => p.d.mode === 'shuttle')));
+  emit('shuttle', 'MIT shuttles', closestRows(shown.filter((p) => p.d.mode === 'shuttle')));
 
   if (discovered.bikes.length > 0) {
-    panels.push({ id: 'bikes', title: 'BlueBikes', status: sourceStatus(input.health.bluebikes, nowMs, false), groups: [] });
+    panels.push({ id: 'bikes', title: 'Bluebikes', status: sourceStatus(input.health.bluebikes, nowMs, false), groups: [] });
   }
 
   return { panels, alerts: relevantAlerts(input.alerts, shownStops, shownRoutes) };

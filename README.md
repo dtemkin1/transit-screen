@@ -17,15 +17,38 @@ Settings live in `src/config.ts` (`defaultConfig`). The board can override some 
 | Parameter | Example | Meaning |
 | --- | --- | --- |
 | `lat`, `lon` | `?lat=42.3598&lon=-71.0961` | Location to measure walking from. Both are needed; invalid values are ignored. |
-| `name` | `?name=Lobby` | Label shown in the header. |
+| `name` | `?name=32` | Building number, shown large in the header. Clears the default place name. |
+| `place` | `?place=Stata%20Center` | Building name shown beside it. |
+| `palette` | `?palette=apricot` | SA+P frame color: `apricot`, `yellow`, `pink`, `blue`, `orange`, `green`, or `rotate` (default). |
 
 Other `Config` fields are set in code only (`src/config.ts`):
 
-- `location`, `name`: defaults to W41, `{ lat: 42.35982, lon: -71.0961 }`. URL overrides apply, see above.
+- `location`, `name`, `place`: default to W41, Metropolitan Warehouse, `{ lat: 42.35982, lon: -71.0961 }`. URL overrides apply, see above.
 - `workerUrl`: from the `VITE_WORKER_URL` build variable (default `http://localhost:8787`).
-- `modes`: maximum walk per mode (`subway` 15 min, `bus` 5, `ezride` 6, `shuttle` 5, `bikes` 4 min, plus `maxStations: 4` for bikes).
+- `modes`: maximum walk per mode (`subway` 15 min, `bus` 7, `ezride` 6, `shuttle` 5, `bikes` 8 min, plus `maxStations: 4` for bikes).
 - `pin`, `hide`: stop or route IDs to pin or hide. `pin` only keeps a stop that is already inside the mode's straight-line candidate circle (`maxWalkMin` x 60 x 1.3 m); it cannot add a farther stop.
 - `walkSpeedMps` (1.3) and `walkDetourFactor` (1.3): used only for the straight-line walk estimate.
+
+### What the board shows
+
+- Each row shows the next departure you can still walk to in time, then up to two more. Trains or buses leaving sooner than the walk are left out, and the same vehicle reported twice within a minute (a repeated trip, a loop bus on back-to-back trips, or an MBTA "added" trip) is shown once.
+- Times in italics come from the schedule (live data for that service is missing). The rest are live predictions.
+- MBTA status messages ("Stopped 5 stops away") appear in burgundy under the destination.
+- All EZRide routes are labelled `EZ` in the agency color (`EZRIDE_COLOR` in `src/lib/display.ts`), with the trip's final stop as the destination.
+
+### Look
+
+The board follows the MIT School of Architecture and Planning identity as used on [sap.mit.edu](https://sap.mit.edu): departures in black on light gray, inside an L-shaped frame (header band, right rail, and the rails between panels) in one SA+P color. Like the site, where each page has its own color, the frame color changes every day at the 04:00 reload. Pin one with `palette` (`apricot` is the color of the site's Met Warehouse page). Colors are in `src/lib/palette.ts`; the rest of the styling is in `src/app.css`.
+
+#### Fonts (optional, Adobe Fonts)
+
+SA+P's own typefaces aren't available to license here, so the board uses the closest faces on Adobe Fonts when a kit is configured, and Helvetica/Arial and Georgia otherwise:
+
+1. At [fonts.adobe.com](https://fonts.adobe.com), create a **web project** with **Neue Haas Grotesk Display** (titles), **Neue Haas Unica** (departures), and **Freight Text Pro** (building name). Use the Regular and Medium weights of the Grotesk, Regular/Italic/Bold of Unica, and Regular of Freight Text.
+2. Add the domains the board is served from: `localhost`, `dtemkin1.github.io`, and `web.mit.edu`.
+3. Put the project ID in `VITE_ADOBE_FONTS_KIT`: in `.env.local` for local builds, and as the repository variable `ADOBE_FONTS_KIT` for the GitHub Pages deploy.
+
+The kit's CSS is fetched from `use.typekit.net` when the page loads. If it can't be reached, the fallback fonts are used. The stacks are in `src/app.css`; if Adobe names a family differently in your kit, change the name there.
 
 ### Walking times
 
@@ -107,4 +130,4 @@ Then add that origin (for example `https://<athena-origin>`) to `ALLOWED_ORIGINS
 - Open the board in a browser's full-screen or kiosk mode (for example, Chrome with `--kiosk`, or press F11).
 - Disable screen sleep and screensaver, both in the OS power settings and in the browser.
 - The page needs no interaction: it starts on load and keeps itself up to date.
-- To point a kiosk at another place, add `?lat=...&lon=...&name=...` to the URL.
+- To point a kiosk at another place, add `?lat=...&lon=...&name=...&place=...` to the URL.

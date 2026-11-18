@@ -40,7 +40,8 @@ describe('stops', () => {
     expect(url.searchParams.get('include')).toBe('parent_station');
     expect(url.searchParams.get('filter[latitude]')).toBe('42.35982');
     expect(new URL(stopsUrl(cfg, 'bus')).searchParams.get('filter[route_type]')).toBe('3');
-    expect(new URL(stopsUrl(cfg, 'bus')).searchParams.get('filter[radius]')).toBe(metresToRadiusDegrees(390, 42.35982).toFixed(5));
+    const busM = cfg.modes.bus.maxWalkMin * 60 * cfg.walkSpeedMps;
+    expect(new URL(stopsUrl(cfg, 'bus')).searchParams.get('filter[radius]')).toBe(metresToRadiusDegrees(busM, 42.35982).toFixed(5));
   });
 });
 
@@ -68,6 +69,10 @@ describe('predictions', () => {
     expect(byTrip('77871346')).toBeUndefined();
     expect(byTrip('77871347')).toBeUndefined();
     expect(departures).toHaveLength(6);
+  });
+
+  it('carries the predicted vehicle id', () => {
+    expect(byTrip('77871340', '70072').vehicleId).toBe('R-548CB52D');
   });
 
   it('sets vehicleStoppedHere only for STOPPED_AT at the same stop', () => {

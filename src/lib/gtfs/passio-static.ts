@@ -109,8 +109,10 @@ export function parsePassioZip(bytes: Uint8Array, source: 'mit' | 'ezride', mode
   const trips: PassioStatic['trips'] = new Map();
   for (const r of table('trips.txt')) {
     const last = stopTimes.get(r.trip_id)?.at(-1);
+    // EZRide's trip_headsign names the service ("Evening Service"), not a destination.
+    const own = source === 'ezride' ? '' : r.trip_headsign?.trim();
     const headsign =
-      r.trip_headsign?.trim() ||
+      own ||
       (last && stops.get(last.stopId)?.name) ||
       routes.get(r.route_id)?.longName ||
       '';

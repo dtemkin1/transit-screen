@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultConfig } from '../config';
+import { sourceStatus } from './board/health';
 import type { Discovered } from './discovery';
 import type { PassioStatic } from './gtfs/passio-static';
 import { createPoller, type PollerDeps } from './poller.svelte';
@@ -12,6 +13,10 @@ import stationStatus from '../test/fixtures/gbfs-station_status.json';
 const cfg = { ...defaultConfig, workerUrl: 'https://w.example' };
 // 2026-11-17 12:00 Eastern; next 04:00 Eastern is 16 h away.
 const START = Date.parse('2026-11-17T12:00:00-05:00');
+// Reload tests start here instead: fast-forwarding 16 h runs the 20 s polls thousands of times,
+// which takes about 5 s of real CPU and times out on a busy machine.
+const BEFORE_4AM = Date.parse('2026-11-18T03:58:00-05:00');
+const TO_4AM = 2 * 60_000;
 const STATUS_URL = 'https://gbfs.example/station_status.json';
 
 const stop = (id: string, source: Stop['source'], platformIds: string[]): Stop => ({
@@ -36,6 +41,9 @@ function discovered(over: Partial<Discovered> = {}): Discovered {
 
 type Handler = (url: string) => unknown;
 
+/** Every poller a test starts is stopped afterwards, so one failing test can't leak timers into the next. */
+const started: { stop(): void }[] = [];
+
 function harness(handlers: Record<string, Handler | unknown>, disc: () => Promise<Discovered> = async () => discovered()) {
   const calls: string[] = [];
   const fetchJson = vi.fn(async (url: string) => {
@@ -53,6 +61,7 @@ function harness(handlers: Record<string, Handler | unknown>, disc: () => Promis
     fetchJson: fetchJson as unknown as PollerDeps['fetchJson'],
     reload, discover, isOnline,
   });
+  started.push(poller);
   const count = (sub: string) => calls.filter((u) => u.includes(sub)).length;
   return { poller, calls, count, reload, discover, isOnline, online };
 }
@@ -70,6 +79,7 @@ beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
 afterEach(() => {
+  for (const p of started.splice(0)) p.stop();
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -248,9 +258,10 @@ describe('poller', () => {
   });
 
   it('schedules reload at next 04:00 Eastern', async () => {
+    vi.setSystemTime(BEFORE_4AM);
     const h = harness(ok);
     h.poller.start();
-    await vi.advanceTimersByTimeAsync(16 * 3_600_000 - 1);
+    await vi.advanceTimersByTimeAsync(TO_4AM - 1);
     expect(h.reload).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
     expect(h.reload).toHaveBeenCalledTimes(1);
@@ -385,14 +396,30 @@ describe('frozen feed timestamps', () => {
     h.poller.stop();
   });
 
-  it('BlueBikes: health follows last_updated', async () => {
-    const frozen = { ...stationStatus, last_updated: START / 1000 - 30 };
+  it('BlueBikes: health follows last_updated + ttl (GBFS data is current until then)', async () => {
+    const frozen = { ...stationStatus, last_updated: START / 1000 - 100, ttl: 60 };
     const h = harness({ ...ok, [STATUS_URL]: frozen });
     h.poller.start();
     await vi.advanceTimersByTimeAsync(0);
-    expect(h.poller.state.health.bluebikes.lastOk).toBe(START - 30_000);
+    expect(h.poller.state.health.bluebikes.lastOk).toBe(START - 40_000);
     await vi.advanceTimersByTimeAsync(3 * 60_000);
-    expect(h.poller.state.health.bluebikes.lastOk).toBe(START - 30_000);
+    expect(h.poller.state.health.bluebikes.lastOk).toBe(START - 40_000);
+    h.poller.stop();
+  });
+
+  it('BlueBikes: a healthy feed served a minute late by its CDN stays "ok" between polls', async () => {
+    // Lyft regenerates every ~60 s (ttl 60) and its CDN serves a copy for up to ~60 s more,
+    // so a fetched document's last_updated can be ~2 min old. With 60 s polls that must not read as delayed.
+    const h = harness({
+      ...ok,
+      [STATUS_URL]: () => ({ ...stationStatus, last_updated: Math.floor(Date.now() / 1000) - 115, ttl: 60 }),
+    });
+    h.poller.start();
+    for (let i = 0; i < 5; i++) {
+      await vi.advanceTimersByTimeAsync(59_000);
+      expect(sourceStatus(h.poller.state.health.bluebikes, Date.now(), false)).toBe('ok');
+      await vi.advanceTimersByTimeAsync(1_000);
+    }
     h.poller.stop();
   });
 });
@@ -523,19 +550,21 @@ describe('error resilience', () => {
 
 describe('reload reachability', () => {
   it('reloads at 04:00 when online', async () => {
+    vi.setSystemTime(BEFORE_4AM);
     const h = harness(ok);
     h.poller.start();
-    await vi.advanceTimersByTimeAsync(16 * 3_600_000);
+    await vi.advanceTimersByTimeAsync(TO_4AM);
     expect(h.isOnline).toHaveBeenCalledTimes(1);
     expect(h.reload).toHaveBeenCalledTimes(1);
     h.poller.stop();
   });
 
   it('while offline, re-checks every 5 min and reloads once online', async () => {
+    vi.setSystemTime(BEFORE_4AM);
     const h = harness(ok);
     h.online.value = false;
     h.poller.start();
-    await vi.advanceTimersByTimeAsync(16 * 3_600_000);
+    await vi.advanceTimersByTimeAsync(TO_4AM);
     expect(h.isOnline).toHaveBeenCalledTimes(1);
     expect(h.reload).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(5 * 60_000);

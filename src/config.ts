@@ -1,8 +1,12 @@
+import { isPaletteName, type PaletteChoice } from './lib/palette';
 import type { LatLon, Mode } from './lib/types';
 
 export interface ModeLimit { maxWalkMin: number; maxStations?: number }
 export interface Config {
-  name: string; location: LatLon; workerUrl: string;
+  name: string;   // building number, shown in the header block ("W41")
+  place: string;  // building name beside it ("Metropolitan Warehouse"); may be empty
+  palette: PaletteChoice; // SA+P frame color, or 'rotate' for a new one each day
+  location: LatLon; workerUrl: string;
   modes: Record<Mode, ModeLimit>;
   pin: string[]; hide: string[];   // stop ids or route ids
   walkSpeedMps: number; walkDetourFactor: number;
@@ -15,14 +19,16 @@ export function pickWorkerUrl(raw: string | undefined): string {
 
 export const defaultConfig: Config = {
   name: 'W41',
+  place: 'Metropolitan Warehouse',
+  palette: 'rotate',
   location: { lat: 42.35982, lon: -71.0961 },
   workerUrl: pickWorkerUrl(import.meta.env.VITE_WORKER_URL),
   modes: {
     subway: { maxWalkMin: 15 },
-    bus: { maxWalkMin: 5 },
+    bus: { maxWalkMin: 7 },
     ezride: { maxWalkMin: 6 },
     shuttle: { maxWalkMin: 5 },
-    bikes: { maxWalkMin: 4, maxStations: 4 },
+    bikes: { maxWalkMin: 8, maxStations: 4 },
   },
   pin: [],
   hide: [],
@@ -34,8 +40,17 @@ export function resolveConfig(search: string, base: Config = defaultConfig): Con
   const params = new URLSearchParams(search);
   const config: Config = { ...base };
 
+  // A different building shouldn't keep W41's place name, so ?name= without ?place= clears it.
   const name = params.get('name');
-  if (name) config.name = name;
+  if (name) {
+    config.name = name;
+    config.place = '';
+  }
+  const place = params.get('place');
+  if (place) config.place = place;
+
+  const palette = params.get('palette');
+  if (palette && (palette === 'rotate' || isPaletteName(palette))) config.palette = palette;
 
   const latRaw = params.get('lat');
   const lonRaw = params.get('lon');

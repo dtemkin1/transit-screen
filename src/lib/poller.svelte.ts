@@ -106,11 +106,19 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
     void run();
   };
 
-  /** A feed's own timestamp (epoch seconds) caps freshness, so a frozen document does not read as live. */
-  const markOk = (source: Source, feedTimeSec?: unknown) => {
+  const seconds = (v: unknown): number | undefined => {
+    const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : v;
+    return typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : undefined;
+  };
+
+  /**
+   * A feed's own timestamp (epoch seconds) caps freshness, so a frozen document does not read
+   * as live. `validForSec` is how long the feed says that data stays current (GBFS `ttl`).
+   */
+  const markOk = (source: Source, feedTimeSec?: unknown, validForSec?: unknown) => {
     const now = deps.now();
-    const t = typeof feedTimeSec === 'string' && feedTimeSec.trim() !== '' ? Number(feedTimeSec) : feedTimeSec;
-    state.health[source] = { lastOk: typeof t === 'number' && Number.isFinite(t) && t > 0 ? Math.min(now, t * 1000) : now };
+    const t = seconds(feedTimeSec);
+    state.health[source] = { lastOk: t === undefined ? now : Math.min(now, (t + (seconds(validForSec) ?? 0)) * 1000) };
   };
 
   const get = <T>(url: string) => deps.fetchJson<T>(url);
@@ -204,9 +212,9 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
     every('BlueBikes status', 60 * SEC, async () => {
       const d = state.discovered!;
       if (!d.bikeStatusUrl) return;
-      const json = await get<{ last_updated?: unknown } | null>(d.bikeStatusUrl);
+      const json = await get<{ last_updated?: unknown; ttl?: unknown } | null>(d.bikeStatusUrl);
       state.bikes = applyStatus(d.bikes, json);
-      markOk('bluebikes', json?.last_updated);
+      markOk('bluebikes', json?.last_updated, json?.ttl);
     });
   }
 

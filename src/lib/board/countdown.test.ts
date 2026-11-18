@@ -41,7 +41,7 @@ describe('countdownLabel', () => {
     expect(countdownLabel(bus({ dep: 3600 }), 0)).toBe('60 min');
     expect(countdownLabel(bus({ dep: 3601 }), 0)).toBeNull();
   });
-  it('status wins', () => expect(countdownLabel(sub({ dep: 300, status: 'Stopped 1 stop away' }), 0)).toBe('Stopped 1 stop away'));
+  it('a status never replaces the countdown', () => expect(countdownLabel(sub({ dep: 300, status: 'Stopped 1 stop away' }), 0)).toBe('5 min'));
   it('status does not resurrect a past departure', () => expect(countdownLabel(sub({ dep: -5, status: 'Delayed' }), 0)).toBeNull());
   it('uses nowMs', () => expect(countdownLabel(bus({ dep: 1000 }), 400_000)).toBe('10 min'));
 });

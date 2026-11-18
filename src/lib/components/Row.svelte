@@ -1,103 +1,106 @@
 <script lang="ts">
-  import type { BoardRow, RouteInfo, TimeCell } from '../types';
+  import { routeBadge, shortStopName } from '../display';
+  import type { BoardRow } from '../types';
 
   let { row }: { row: BoardRow } = $props();
 
-  const HEX = /^#[0-9a-f]{6}$/i;
   const MINUTES = /^(\d+) min$/;
 
-  /** Short names up to 4 characters fit a pill as is; longer ones ("Red Line", "Tech Shuttle") become initials. */
-  function pillText(r: RouteInfo): string {
-    const name = r.shortName || r.longName;
-    if (name.length <= 4) return name;
-    return name.split(/[\s/-]+/).filter(Boolean).map((w) => w[0]).join('').slice(0, 3).toUpperCase();
-  }
-
-  /** "4, 15, 22 min": the unit is written once, after the last time, when that time is in minutes. */
-  function cellText(cells: TimeCell[]): { cell: TimeCell; text: string }[] {
-    const lastIsMin = MINUTES.test(cells[cells.length - 1]?.label ?? '');
-    return cells.map((cell, i) => {
-      const m = MINUTES.exec(cell.label);
-      const last = i === cells.length - 1;
-      return { cell, text: m && lastIsMin && !last ? m[1] : cell.label };
-    });
-  }
-
-  const bg = $derived(HEX.test(row.route.color) ? row.route.color : '#5f6368');
-  const fg = $derived(HEX.test(row.route.textColor) ? row.route.textColor : '#ffffff');
-  const times = $derived(cellText(row.times));
+  const badge = $derived(routeBadge(row.route));
+  const next = $derived(row.times[0]);
+  const nextMin = $derived(next ? MINUTES.exec(next.label)?.[1] : undefined);
+  const later = $derived(row.times.slice(1));
+  // "then 17, 31 min": the unit once, after the last time, when every later time is in minutes.
+  const laterText = $derived.by(() => {
+    const nums = later.map((t) => MINUTES.exec(t.label)?.[1]);
+    return nums.every((n) => n !== undefined) ? `${nums.join(', ')} min` : later.map((t) => t.label).join(', ');
+  });
+  const where = $derived(
+    row.stopName !== undefined
+      ? `${shortStopName(row.stopName)}, ${row.walkEstimated ? '~' : ''}${row.walkMin} min walk`
+      : '',
+  );
 </script>
 
-<div class="line row" class:sub={row.stopName !== undefined}>
-  <span class="pill" style:background={bg} style:color={fg}>{pillText(row.route)}</span>
-  <span class="dest">
+<div class="row">
+  <span class="badge" style:background={badge.bg} style:color={badge.fg}>{badge.text}</span>
+  <div class="dest">
     <span class="headsign">{row.headsign}</span>
-    {#if row.stopName !== undefined}
-      <span class="stop">{row.stopName} · {row.walkEstimated ? '~' : ''}{row.walkMin} min walk</span>
+    {#if next?.status || where}
+      <span class="sub">
+        {#if next?.status}<span class="status">{next.status}</span>{#if where}. {/if}{/if}{where}
+      </span>
     {/if}
-  </span>
-  <span class="times">
-    {#each times as { cell, text }, i (i)}
-      {#if i > 0}<span class="sep">,</span>{/if}<span
-        class="t"
-        class:scheduled={!cell.live}
-        class:unreachable={!cell.reachable}>{text}</span>
-    {/each}
-  </span>
+  </div>
+  {#if next}
+    <div class="times">
+      <span class="next" class:scheduled={!next.live}>
+        {#if nextMin !== undefined}{nextMin}<small> min</small>{:else}{next.label}{/if}
+      </span>
+      {#if later.length > 0}
+        <span class="later" class:scheduled={later.some((t) => !t.live)}>then {laterText}</span>
+      {/if}
+    </div>
+  {/if}
 </div>
 
 <style>
   .row {
-    display: flex;
+    height: var(--row);
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: 0.6em;
-    height: var(--line);
-    min-width: 0;
+    column-gap: 0.55em;
+    border-top: 1px solid var(--rule);
   }
-  .pill {
-    flex: none;
-    min-width: 2.4em;
-    padding: 0.1em 0.35em;
-    border-radius: 0.25em;
+  .badge {
+    min-width: 2.1em;
+    padding: 0.12em 0.3em;
     font-weight: 700;
-    font-size: 0.9em;
     text-align: center;
     white-space: nowrap;
   }
-  .dest {
-    flex: 1;
-    min-width: 0;
+  .dest,
+  .times {
     display: flex;
     flex-direction: column;
-    line-height: 1.2;
+    min-width: 0;
+  }
+  .times {
+    align-items: flex-end;
   }
   .headsign,
-  .stop {
+  .sub {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .stop {
-    color: var(--muted);
-    font-size: 0.75em;
+  .headsign {
+    font-weight: 700;
   }
-  .times {
-    flex: none;
+  .sub,
+  .later {
+    font-size: 0.72em;
+    color: var(--muted);
     white-space: nowrap;
   }
-  .t {
+  .status {
     font-weight: 700;
-    font-variant-numeric: tabular-nums;
+    color: var(--emphasis);
   }
-  .sep {
-    margin-right: 0.3em;
-    color: var(--muted);
+  .next {
+    font-size: 1.3em;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .next small {
+    margin-left: 0.15em;
+    font-size: 0.6em;
+    font-weight: 400;
   }
   .scheduled {
-    color: var(--muted);
     font-style: italic;
-  }
-  .unreachable {
-    opacity: 0.35;
+    color: var(--muted);
   }
 </style>

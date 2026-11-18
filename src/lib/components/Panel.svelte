@@ -4,27 +4,27 @@
   import type { BoardPanel } from '../types';
   import Row from './Row.svelte';
 
-  /** `children` replaces the rows (bikes); it gets how many lines fit. */
+  /** `children` replaces the rows (bikes); it gets how many rows fit. */
   let { panel, children }: { panel: BoardPanel; children?: Snippet<[number]> } = $props();
+
+  // A station header is HEADER_EM tall and a row ROW_EM, both in the panel's em, so their ratio is fixed.
+  const ROW_EM = 2.5;
+  const HEADER_EM = 1.45;
 
   let body: HTMLElement | undefined = $state();
   let bodyHeight = $state(0);
-  // Kept from the last measurement, so a body too small for any line stays empty instead of flickering.
-  let lineHeight = $state(0);
+  let emPx = $state(0);
 
-  const maxLines = $derived(lineHeight > 0 ? Math.floor(bodyHeight / lineHeight) : Infinity);
-  const shown = $derived(trimPanel(panel, maxLines));
+  const rowPx = $derived(emPx * ROW_EM);
+  const maxLines = $derived(rowPx > 0 ? bodyHeight / rowPx : Infinity);
+  const shown = $derived(trimPanel(panel, maxLines, HEADER_EM / ROW_EM));
   const hasRows = $derived(panel.groups.some((g) => g.rows.length > 0));
   const unavailable = $derived((panel.status === 'unavailable' || panel.status === 'schedule-fallback') && !hasRows);
 
   function measure() {
     if (!body) return;
     bodyHeight = body.clientHeight;
-    const line = body.querySelector<HTMLElement>('.line');
-    if (line) {
-      const h = line.getBoundingClientRect().height;
-      if (h > 0) lineHeight = h;
-    }
+    emPx = parseFloat(getComputedStyle(body).fontSize) || 0;
   }
 
   $effect(() => {
@@ -33,32 +33,23 @@
     ro.observe(body);
     return () => ro.disconnect();
   });
-
-  // Re-measure once new content is in the DOM (the first line may only now exist).
-  $effect(() => {
-    void shown;
-    void unavailable;
-    measure();
-  });
 </script>
 
-<section class="panel" data-panel={panel.id} aria-label={panel.title}>
+<section class="panel" aria-label={panel.title} style:--row="{ROW_EM}em" style:--header="{HEADER_EM}em">
   <h2 class="title">
     <span class="name">{panel.title}</span>
-    {#if panel.status === 'delayed'}<span class="tag">data delayed</span>{/if}
+    {#if panel.status === 'delayed'}<span class="flag">Data delayed</span>{/if}
+    {#if panel.status === 'schedule-fallback' && hasRows}<span class="flag">Live data unavailable, showing schedule</span>{/if}
   </h2>
-  {#if panel.status === 'schedule-fallback' && hasRows}
-    <p class="note">Live data unavailable, showing schedule</p>
-  {/if}
   <div class="body" bind:this={body}>
     {#if unavailable}
       <p class="note">Live data unavailable</p>
     {:else if children}
-      {@render children(maxLines)}
+      {@render children(Math.floor(maxLines))}
     {:else}
       {#each shown.groups as group, gi (gi)}
         {#if group.header}
-          <div class="line station">
+          <div class="station">
             <span class="station-name">{group.header.name}</span>
             <span class="walk">{group.header.walkEstimated ? '~' : ''}{group.header.walkMin} min walk</span>
           </div>
@@ -73,52 +64,42 @@
 
 <style>
   .panel {
-    --line: 1.9em;
-    background: var(--panel);
-    border-radius: 0.8vmin;
-    padding: 1.2vmin 1.4vmin;
+    height: 100%;
+    background: var(--page);
+    padding: 1.2vmin 1.8vmin 0.4vmin;
     display: flex;
     flex-direction: column;
-    gap: 0.4em;
+    gap: 0.3em;
     min-width: 0;
     min-height: 0;
     overflow: hidden;
   }
-  .panel[data-panel='bus'],
-  .panel[data-panel='shuttle'],
-  .panel[data-panel='bikes'] {
-    --line: 2.7em;
-  }
   .title {
     margin: 0;
     display: flex;
-    justify-content: space-between;
     align-items: baseline;
-    gap: 0.6em;
-    font-size: 0.8em;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--muted);
+    gap: 0.8em;
+    font-family: var(--font-display);
+    font-size: 1.3em;
+    font-weight: 500;
+    letter-spacing: -0.01em;
     white-space: nowrap;
   }
   .name {
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .tag {
+  .flag {
     flex: none;
-    padding: 0.1em 0.5em;
-    border-radius: 0.3em;
-    background: var(--alert-bg);
-    color: var(--alert-text);
-    letter-spacing: 0.02em;
-    text-transform: none;
+    font-family: var(--font-sans);
+    font-size: 0.55em;
+    font-weight: 700;
+    letter-spacing: 0;
+    color: var(--emphasis);
   }
   .note {
-    margin: 0;
+    margin: 0.4em 0 0;
     color: var(--muted);
-    font-size: 0.85em;
   }
   .body {
     flex: 1;
@@ -126,25 +107,22 @@
     overflow: hidden;
   }
   .station {
+    height: var(--header);
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
     gap: 0.6em;
-    height: var(--line);
-    padding-bottom: 0.2em;
-    box-sizing: border-box;
-    border-bottom: 1px solid var(--rule);
-    font-weight: 600;
+    padding-bottom: 0.15em;
     color: var(--muted);
     white-space: nowrap;
   }
-  /* Size the text, not the line: --line is in em and must match a row's height. */
   .station > span {
-    font-size: 0.85em;
+    font-size: 0.8em;
   }
   .station-name {
     overflow: hidden;
     text-overflow: ellipsis;
+    font-weight: 700;
     color: var(--text);
   }
   .walk {

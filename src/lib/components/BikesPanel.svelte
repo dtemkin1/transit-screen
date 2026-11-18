@@ -1,67 +1,78 @@
 <script lang="ts">
+  import { countNoun, plural, shortStopName } from '../display';
   import type { BikeStation } from '../types';
 
   let { stations }: { stations: BikeStation[] } = $props();
 
-  const count = (n: number | undefined) => (n === undefined ? '—' : String(n));
+  const walk = (s: BikeStation) => `${Math.ceil(s.walkSec / 60)} min walk`;
 </script>
 
 {#each stations as s (s.id)}
-  <div class="line station">
-    <div class="top">
-      <span class="name">{s.name}</span>
-      <span class="walk">{Math.ceil(s.walkSec / 60)} min walk</span>
+  <div class="row">
+    <div class="where">
+      <span class="name">{shortStopName(s.name)}</span>
+      <span class="sub">{walk(s)}{s.ebikes ? `, ${countNoun(s.ebikes, 'e-bike')}` : ''}</span>
     </div>
-    {#if s.renting === false}
-      <div class="counts closed">Closed</div>
-    {:else}
-      <div class="counts">
-        <span><b>{count(s.bikes)}</b> bikes</span>
-        <span><b>{count(s.ebikes)}</b> e-bikes</span>
-        <span><b>{count(s.docks)}</b> docks</span>
-      </div>
-    {/if}
+    <div class="counts">
+      {#if s.renting === false}
+        <span class="closed">Closed</span>
+      {:else if s.bikes === undefined}
+        <span class="sub">No data</span>
+      {:else}
+        <span class="bikes" class:empty={s.bikes === 0}>{s.bikes}<small> {plural(s.bikes, 'bike')}</small></span>
+        {#if s.docks !== undefined}<span class="sub">{countNoun(s.docks, 'open dock')}</span>{/if}
+      {/if}
+    </div>
   </div>
 {/each}
 
 <style>
-  .station {
-    height: var(--line);
+  .row {
+    height: var(--row);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 0.6em;
+    border-top: 1px solid var(--rule);
+  }
+  .where,
+  .counts {
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    line-height: 1.2;
     min-width: 0;
   }
-  .top {
-    display: flex;
-    justify-content: space-between;
-    gap: 0.6em;
-    white-space: nowrap;
+  .counts {
+    align-items: flex-end;
   }
-  .name {
+  .name,
+  .sub {
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .walk {
-    flex: none;
-    color: var(--muted);
-    font-size: 0.75em;
-    align-self: center;
+  .name {
+    font-weight: 700;
   }
-  .counts {
-    display: flex;
-    gap: 0.9em;
+  .sub {
+    font-size: 0.72em;
     color: var(--muted);
-    font-size: 0.85em;
+  }
+  .bikes {
+    font-size: 1.3em;
+    font-weight: 700;
+    line-height: 1;
     white-space: nowrap;
-    overflow: hidden;
   }
-  .counts b {
-    color: var(--text);
-    font-variant-numeric: tabular-nums;
+  .bikes small {
+    margin-left: 0.15em;
+    font-size: 0.6em;
+    font-weight: 400;
+  }
+  .empty {
+    color: var(--muted);
   }
   .closed {
+    color: var(--muted);
     font-style: italic;
   }
 </style>

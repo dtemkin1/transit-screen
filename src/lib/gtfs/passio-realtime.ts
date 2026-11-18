@@ -41,6 +41,7 @@ export function parseTripUpdates(
     const routeId = staticTrip?.routeId ?? String(trip.route_id ?? '');
     if (!routeId) continue;
     const headsign = staticTrip?.headsign || s.routes.get(routeId)?.longName || 'Shuttle';
+    const vehicleId = obj(tu.vehicle).id;
     const last = s.stopTimes.get(tripId)?.at(-1);
     for (const u of arr(tu.stop_time_update)) {
       const stu = obj(u);
@@ -56,6 +57,7 @@ export function parseTripUpdates(
         directionKey: `${routeId}:${headsign}`, headsign,
         departureTime: t, ...(arrival !== null && { arrivalTime: arrival }),
         live: true, tripId,
+        ...(vehicleId != null && vehicleId !== '' && { vehicleId: String(vehicleId) }),
       });
     }
   }

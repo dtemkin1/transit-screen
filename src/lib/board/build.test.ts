@@ -39,7 +39,7 @@ function discovered(bikes: BikeStation[] = []): Discovered {
   };
 }
 
-interface DepOpts { min: number; dir?: string; headsign?: string; trip?: string; live?: boolean }
+interface DepOpts { min: number; dir?: string; headsign?: string; trip?: string; live?: boolean; status?: string }
 const dep = (source: Source, mode: Mode, routeId: string, stopId: string) =>
   (o: DepOpts): Departure => ({
     source, mode, routeId, stopId,
@@ -48,6 +48,7 @@ const dep = (source: Source, mode: Mode, routeId: string, stopId: string) =>
     departureTime: NOW + o.min * MIN,
     live: o.live ?? true,
     tripId: o.trip,
+    ...(o.status ? { status: o.status } : {}),
   });
 const red = (stopId: string, o: DepOpts) => dep('mbta', 'subway', 'Red', stopId)(o);
 const bus1 = (stopId: string, o: DepOpts) => dep('mbta', 'bus', '1', stopId)({ headsign: 'Harvard', ...o });
@@ -88,7 +89,7 @@ describe('buildBoard: subway', () => {
     const kendall = p.groups[0];
     expect(kendall.rows.map((r) => r.key)).toEqual(['Red:Alewife', 'Red:Ashmont']);
     expect(mins(kendall.rows[0].times)).toEqual([15, 25]);
-    expect(kendall.rows[0].times[0]).toMatchObject({ label: '15 min', live: true, reachable: true });
+    expect(kendall.rows[0].times[0]).toMatchObject({ label: '15 min', live: true });
     expect(kendall.rows[0].stopName).toBeUndefined();
   });
 
@@ -107,24 +108,83 @@ describe('buildBoard: subway', () => {
     const green = route('mbta', 'subway', 'Green-E', 'Green Line E');
     const { panels } = buildBoard(input({
       extraRoutes: [green],
-      live: withLive([red('70071', { min: 5 }), dep('mbta', 'subway', 'Green-E', '70072')({ min: 9 })]),
+      live: withLive([red('70071', { min: 15 }), dep('mbta', 'subway', 'Green-E', '70072')({ min: 19 })]),
     }));
     expect(panel(panels, 'subway')!.title).toBe('Subway');
   });
 
-  it('unreachable departure flagged, at most one leading unreachable time', () => {
+  it('drops departures you cannot walk to in time', () => {
     // Kendall walk is 600 s: 2 and 5 min are unreachable.
     const { panels } = buildBoard(input({
       live: withLive([2, 5, 12, 20, 30].map((min) => red('70071', { min }))),
     }));
     const times = panel(panels, 'subway')!.groups[0].rows[0].times;
-    expect(mins(times)).toEqual([2, 12, 20]);
-    expect(times.map((t) => t.reachable)).toEqual([false, true, true]);
+    expect(mins(times)).toEqual([12, 20, 30]);
   });
 
-  it('a departure exactly at walk time is reachable', () => {
+  it('a row is labelled by the first departure shown, not an unreachable earlier one', () => {
+    // Stop 1001 is a 2 min walk: the 1-min "Harvard" bus is dropped, so the row is the 12-min "Harvard via Mass Ave".
+    const { panels } = buildBoard(input({
+      live: withLive([bus1('1001', { min: 1 }), bus1('1001', { min: 12, headsign: 'Harvard via Mass Ave' })]),
+    }));
+    const row = panel(panels, 'bus')!.groups[0].rows[0];
+    expect(row.headsign).toBe('Harvard via Mass Ave');
+    expect(mins(row.times)).toEqual([12]);
+  });
+
+  it('merges an MBTA "ADDED" trip within a minute of another into one time', () => {
+    const { panels } = buildBoard(input({
+      live: withLive([
+        red('70071', { min: 17, trip: '77871209' }),
+        red('70071', { min: 17.8, trip: 'ADDED-1585081938' }),
+        red('70071', { min: 25, trip: '77871213' }),
+      ]),
+    }));
+    expect(mins(panel(panels, 'subway')!.groups[0].rows[0].times)).toEqual([17, 25]);
+  });
+
+  it('keeps two different trips less than a minute apart (bunched vehicles)', () => {
+    const { panels } = buildBoard(input({
+      live: withLive([red('70071', { min: 17, trip: 'a' }), red('70071', { min: 17.7, trip: 'b' })]),
+    }));
+    expect(mins(panel(panels, 'subway')!.groups[0].rows[0].times)).toEqual([17, 17.7]);
+  });
+
+  it('one vehicle on two consecutive trips (a loop) within a minute shows once', () => {
+    const at = (min: number, trip: string, vehicleId: string) => ({ ...red('70071', { min, trip }), vehicleId });
+    const { panels } = buildBoard(input({
+      live: withLive([at(17, 'a', 'v1'), at(17.5, 'b', 'v1'), at(17.6, 'c', 'v2')]),
+    }));
+    expect(mins(panel(panels, 'subway')!.groups[0].rows[0].times)).toEqual([17, 17.6]);
+  });
+
+  it('the same trip reported twice shows once', () => {
+    const { panels } = buildBoard(input({
+      live: withLive([red('70071', { min: 17, trip: 'a' }), red('70071', { min: 17.4, trip: 'a' })]),
+    }));
+    expect(mins(panel(panels, 'subway')!.groups[0].rows[0].times)).toEqual([17]);
+  });
+
+  it('keeps an MBTA status beside the countdown instead of replacing it', () => {
+    const { panels } = buildBoard(input({
+      live: withLive([red('70071', { min: 20, status: 'Stopped 5 stops away' })]),
+    }));
+    expect(panel(panels, 'subway')!.groups[0].rows[0].times[0])
+      .toMatchObject({ label: '20 min', status: 'Stopped 5 stops away' });
+  });
+
+  it('a departure exactly at walk time is shown', () => {
     const { panels } = buildBoard(input({ live: withLive([red('70071', { min: 10 })]) }));
-    expect(panel(panels, 'subway')!.groups[0].rows[0].times[0].reachable).toBe(true);
+    expect(mins(panel(panels, 'subway')!.groups[0].rows[0].times)).toEqual([10]);
+  });
+
+  it('reachability uses the walk minutes shown, so no "3 min" bus appears beside a "4 min walk"', () => {
+    // Stop 1002 is 200 s away, shown as a 4 min walk.
+    const at = (min: number) => buildBoard(input({
+      live: withLive([dep('mbta', 'bus', '64', '1002')({ min, headsign: 'Oak Sq' })]),
+    }));
+    expect(panel(at(3.5).panels, 'bus')).toBeUndefined();
+    expect(mins(panel(at(4).panels, 'bus')!.groups[0].rows[0].times)).toEqual([4]);
   });
 
   it('drops departures outside the 60-minute window', () => {
@@ -166,7 +226,7 @@ describe('buildBoard: staleness and merge', () => {
       health: { ...input().health, mit: { lastOk: null } },
       scheduled: { ...empty(), mit: [dep('mit', 'shuttle', 'tech', 'm1')({ min: 90, live: false })] },
     }));
-    expect(panels).toEqual([{ id: 'shuttle', title: 'MIT Shuttles', status: 'schedule-fallback', groups: [] }]);
+    expect(panels).toEqual([{ id: 'shuttle', title: 'MIT shuttles', status: 'schedule-fallback', groups: [] }]);
   });
 
   it('a schedule with only past departures counts as no schedule: unavailable', () => {
@@ -174,7 +234,7 @@ describe('buildBoard: staleness and merge', () => {
       health: { ...input().health, mit: { lastOk: null } },
       scheduled: { ...empty(), mit: [dep('mit', 'shuttle', 'tech', 'm1')({ min: -30, live: false })] },
     }));
-    expect(panels).toEqual([{ id: 'shuttle', title: 'MIT Shuttles', status: 'unavailable', groups: [] }]);
+    expect(panels).toEqual([{ id: 'shuttle', title: 'MIT shuttles', status: 'unavailable', groups: [] }]);
   });
 
   it('no empty panel for a failing source without discovered stops', () => {
@@ -309,7 +369,7 @@ describe('buildBoard: bus and shuttle', () => {
     }));
     const rows = panel(panels, 'bus')!.groups[0].rows;
     expect(rows.map((r) => r.key)).toEqual(['ezride:er:0', 'mbta:64:0', 'mbta:1:0']);
-    expect(rows[2].times.map((t) => t.reachable)).toEqual([false, true]);
+    expect(mins(rows[2].times)).toEqual([12]);
   });
 
   it('bus panel status is the worst of mbta and ezride', () => {
@@ -325,7 +385,7 @@ describe('buildBoard: bus and shuttle', () => {
       live: withLive([], { mit: [dep('mit', 'shuttle', 'tech', 'm1')({ min: 4, headsign: 'Kendall' })] }),
     }));
     const p = panel(panels, 'shuttle')!;
-    expect(p.title).toBe('MIT Shuttles');
+    expect(p.title).toBe('MIT shuttles');
     expect(p.groups[0].rows[0]).toMatchObject({ key: 'mit:tech:0', stopName: 'Stop m1', walkMin: 2 });
   });
 
@@ -370,13 +430,13 @@ describe('buildBoard: bikes and order', () => {
     });
     const { panels } = buildBoard(input({ live, discovered: discovered([BIKE]) }));
     expect(panels.map((p) => p.id)).toEqual(['subway', 'bus', 'shuttle', 'bikes']);
-    expect(panel(panels, 'bikes')).toEqual({ id: 'bikes', title: 'BlueBikes', status: 'ok', groups: [] });
+    expect(panel(panels, 'bikes')).toEqual({ id: 'bikes', title: 'Bluebikes', status: 'ok', groups: [] });
 
     const stale = buildBoard(input({
       discovered: discovered([BIKE]),
       health: { ...input().health, bluebikes: { lastOk: NOW - 11 * MIN } },
     }));
-    expect(stale.panels).toEqual([{ id: 'bikes', title: 'BlueBikes', status: 'unavailable', groups: [] }]);
+    expect(stale.panels).toEqual([{ id: 'bikes', title: 'Bluebikes', status: 'unavailable', groups: [] }]);
 
     expect(buildBoard(input()).panels).toEqual([]);
   });

@@ -15,7 +15,7 @@
       <path d="M12 2 1 21h22L12 2Zm1 15h-2v2h2v-2Zm0-8h-2v6h2V9Z" fill="currentColor" fill-rule="evenodd" />
     </svg>
     <p class="text">{current.header}</p>
-    {#if alerts.length > 1}<span class="count">{index + 1}/{alerts.length}</span>{/if}
+    {#if alerts.length > 1}<span class="count">{index + 1} of {alerts.length}</span>{/if}
   </aside>
 {/if}
 
@@ -23,14 +23,15 @@
   .strip {
     display: flex;
     align-items: center;
-    gap: 0.8em;
-    padding: 0.7vmin 1.4vmin;
-    border-radius: 0.8vmin;
-    background: var(--alert-bg);
-    color: var(--alert-text);
+    gap: 0.7em;
+    padding: 0.8vmin 1.6vmin;
+    background: var(--band);
+    color: var(--on-band);
+    font-size: 0.85em;
   }
   .icon {
     flex: none;
+    color: var(--frame);
     width: 1.2em;
     height: 1.2em;
   }
@@ -46,7 +47,6 @@
   }
   .count {
     flex: none;
-    font-size: 0.8em;
-    font-variant-numeric: tabular-nums;
+    font-size: 0.85em;
   }
 </style>

@@ -48,6 +48,7 @@ jobs:
         run: npm run build
         env:
           VITE_WORKER_URL: ${{ vars.WORKER_URL }}
+          VITE_ADOBE_FONTS_KIT: ${{ vars.ADOBE_FONTS_KIT }}
 
       - uses: actions/configure-pages@v5
 

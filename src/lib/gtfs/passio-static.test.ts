@@ -34,6 +34,20 @@ describe('parsePassioZip', () => {
   it('headsign falls back to last stop name', () => {
     expect(s.trips.get('t1')!.headsign).toBe('Stop D');
   });
+  it('EZRide uses the last stop, since its trip_headsign is a service name ("Evening Service")', () => {
+    const ez = parsePassioZip(toZip({
+      ...files,
+      'trips.txt': 'route_id,service_id,trip_id,trip_headsign,direction_id\nr1,WK,t1,Evening Service,\n',
+    }), 'ezride', 'ezride');
+    expect(ez.trips.get('t1')!.headsign).toBe('Stop D');
+  });
+  it('MIT keeps a real trip_headsign', () => {
+    const mit = parsePassioZip(toZip({
+      ...files,
+      'trips.txt': 'route_id,service_id,trip_id,trip_headsign,direction_id\nr1,WK,t1,Kendall,\n',
+    }), 'mit', 'shuttle');
+    expect(mit.trips.get('t1')!.headsign).toBe('Kendall');
+  });
   it('route uses long name and mit default colors', () => {
     expect(s.routes.get('r1')).toMatchObject({
       shortName: 'Tech Shuttle', color: '#A31F34', textColor: '#FFFFFF', source: 'mit', mode: 'shuttle',
