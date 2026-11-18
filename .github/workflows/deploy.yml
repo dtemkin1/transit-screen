@@ -26,9 +26,14 @@ jobs:
 
       - run: npm ci
 
+      - run: npm run check
+
       - run: npm test
 
       - run: npm ci
+        working-directory: worker
+
+      - run: npm run check
         working-directory: worker
 
       - run: npm test

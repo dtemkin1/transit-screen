@@ -24,7 +24,7 @@ Other `Config` fields are set in code only (`src/config.ts`):
 - `location`, `name`: defaults to W41, `{ lat: 42.35982, lon: -71.0961 }`. URL overrides apply, see above.
 - `workerUrl`: from the `VITE_WORKER_URL` build variable (default `http://localhost:8787`).
 - `modes`: maximum walk per mode (`subway` 15 min, `bus` 5, `ezride` 6, `shuttle` 5, `bikes` 4 min, plus `maxStations: 4` for bikes).
-- `pin`, `hide`: stop or route IDs to pin or hide.
+- `pin`, `hide`: stop or route IDs to pin or hide. `pin` only keeps a stop that is already inside the mode's straight-line candidate circle (`maxWalkMin` x 60 x 1.3 m); it cannot add a farther stop.
 - `walkSpeedMps` (1.3) and `walkDetourFactor` (1.3): used only for the straight-line walk estimate.
 
 ### Walking times
@@ -76,7 +76,7 @@ The Worker serves `https://<your-worker>.<account>.workers.dev`. Its CORS allowl
 ALLOWED_ORIGINS = "http://localhost:5173,https://dtemkin1.github.io,https://<athena-origin>"
 ```
 
-Requests from origins not on this list are rejected.
+Browsers only let pages from listed origins read responses, because the Worker sends the CORS header only for them. This is not access control: non-browser clients can still call the Worker.
 
 The board reloads itself daily at about 04:00 America/New_York, but only once the Worker is reachable.
 
