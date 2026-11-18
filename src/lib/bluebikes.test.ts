@@ -108,6 +108,22 @@ describe('applyStatus', () => {
     expect(byId.get(LAFAYETTE_SQUARE)?.renting).toBe(false);
   });
 
+  it('reads GBFS 2.x/3.x boolean is_renting and is_installed', () => {
+    const status = {
+      data: {
+        stations: [
+          { station_id: MASS_AVE_ALBANY, num_bikes_available: 2, num_docks_available: 16, is_installed: true, is_renting: true },
+          { station_id: LAFAYETTE_SQUARE, num_bikes_available: 1, num_docks_available: 13, is_installed: true, is_renting: false },
+          { station_id: 'x', num_bikes_available: 1, num_docks_available: 13, is_installed: false, is_renting: true },
+        ],
+      },
+    };
+    const byId = new Map(applyStatus([...stations, { id: 'x', name: 'x', lat: 0, lon: 0, walkSec: 0 }], status).map((s) => [s.id, s]));
+    expect(byId.get(MASS_AVE_ALBANY)?.renting).toBe(true);
+    expect(byId.get(LAFAYETTE_SQUARE)?.renting).toBe(false);
+    expect(byId.get('x')?.renting).toBe(false);
+  });
+
   it('does not mutate the input stations', () => {
     applyStatus(stations, stationStatus);
     expect(stations[0].bikes).toBeUndefined();

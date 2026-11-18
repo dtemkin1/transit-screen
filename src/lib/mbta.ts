@@ -189,6 +189,7 @@ export function alertsUrl(cfg: Config, routeIds: string[], stopIds: string[]): s
   if (routeIds.length) q['filter[route]'] = routeIds.join(',');
   if (stopIds.length) q['filter[stop]'] = stopIds.join(',');
   q['filter[activity]'] = 'BOARD,EXIT,RIDE';
+  q['filter[datetime]'] = 'NOW';
   q['fields[alert]'] = 'header,effect,informed_entity';
   return url(cfg, 'alerts', q);
 }

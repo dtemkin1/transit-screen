@@ -183,6 +183,7 @@ describe('alerts', () => {
     expect(a.searchParams.get('filter[route]')).toBe('Red,85');
     expect(a.searchParams.has('filter[stop]')).toBe(false);
     expect(a.searchParams.get('filter[activity]')).toBe('BOARD,EXIT,RIDE');
+    expect(a.searchParams.get('filter[datetime]')).toBe('NOW');
     const b = new URL(alertsUrl(cfg, [], ['97']));
     expect(b.searchParams.get('filter[stop]')).toBe('97');
     expect(b.searchParams.has('filter[route]')).toBe(false);

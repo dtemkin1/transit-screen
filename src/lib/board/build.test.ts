@@ -169,6 +169,14 @@ describe('buildBoard: staleness and merge', () => {
     expect(panels).toEqual([{ id: 'shuttle', title: 'MIT Shuttles', status: 'schedule-fallback', groups: [] }]);
   });
 
+  it('a schedule with only past departures counts as no schedule: unavailable', () => {
+    const { panels } = buildBoard(input({
+      health: { ...input().health, mit: { lastOk: null } },
+      scheduled: { ...empty(), mit: [dep('mit', 'shuttle', 'tech', 'm1')({ min: -30, live: false })] },
+    }));
+    expect(panels).toEqual([{ id: 'shuttle', title: 'MIT Shuttles', status: 'unavailable', groups: [] }]);
+  });
+
   it('no empty panel for a failing source without discovered stops', () => {
     const { panels } = buildBoard(input({
       discovered: { ...discovered(), stops: STOPS.filter((s) => s.mode !== 'shuttle') },

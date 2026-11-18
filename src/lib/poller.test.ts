@@ -363,6 +363,40 @@ describe('Passio polling', () => {
   });
 });
 
+describe('frozen feed timestamps', () => {
+  it('Passio: health follows header.timestamp, not fetch success', async () => {
+    const frozen = { ...tripUpdates, header: { timestamp: String(START / 1000) } };
+    const h = harness({ ...ok, tripUpdates: frozen, serviceAlerts }, async () => mitDiscovered());
+    h.poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.poller.state.health.mit.lastOk).toBe(START);
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(h.count('tripUpdates')).toBeGreaterThan(10);
+    expect(h.poller.state.health.mit.lastOk).toBe(START);
+    h.poller.stop();
+  });
+
+  it('Passio: a future timestamp is capped at now', async () => {
+    const h = harness({ ...ok, tripUpdates: { ...tripUpdates, header: { timestamp: String(START / 1000 + 3600) } }, serviceAlerts },
+      async () => mitDiscovered());
+    h.poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.poller.state.health.mit.lastOk).toBe(START);
+    h.poller.stop();
+  });
+
+  it('BlueBikes: health follows last_updated', async () => {
+    const frozen = { ...stationStatus, last_updated: START / 1000 - 30 };
+    const h = harness({ ...ok, [STATUS_URL]: frozen });
+    h.poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.poller.state.health.bluebikes.lastOk).toBe(START - 30_000);
+    await vi.advanceTimersByTimeAsync(3 * 60_000);
+    expect(h.poller.state.health.bluebikes.lastOk).toBe(START - 30_000);
+    h.poller.stop();
+  });
+});
+
 describe('discovery recovery', () => {
   const full = () => discovered({
     stops: [stop('place-knncl', 'mbta', ['70071']), stop('s1', 'mit', ['s1'])],

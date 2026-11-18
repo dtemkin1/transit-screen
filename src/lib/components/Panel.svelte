@@ -15,7 +15,7 @@
   const maxLines = $derived(lineHeight > 0 ? Math.floor(bodyHeight / lineHeight) : Infinity);
   const shown = $derived(trimPanel(panel, maxLines));
   const hasRows = $derived(panel.groups.some((g) => g.rows.length > 0));
-  const unavailable = $derived(panel.status === 'unavailable' && !hasRows);
+  const unavailable = $derived((panel.status === 'unavailable' || panel.status === 'schedule-fallback') && !hasRows);
 
   function measure() {
     if (!body) return;
@@ -47,7 +47,7 @@
     <span class="name">{panel.title}</span>
     {#if panel.status === 'delayed'}<span class="tag">data delayed</span>{/if}
   </h2>
-  {#if panel.status === 'schedule-fallback'}
+  {#if panel.status === 'schedule-fallback' && hasRows}
     <p class="note">Live data unavailable, showing schedule</p>
   {/if}
   <div class="body" bind:this={body}>

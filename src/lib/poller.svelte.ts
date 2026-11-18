@@ -106,8 +106,11 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
     void run();
   };
 
-  const markOk = (source: Source) => {
-    state.health[source] = { lastOk: deps.now() };
+  /** A feed's own timestamp (epoch seconds) caps freshness, so a frozen document does not read as live. */
+  const markOk = (source: Source, feedTimeSec?: unknown) => {
+    const now = deps.now();
+    const t = typeof feedTimeSec === 'string' && feedTimeSec.trim() !== '' ? Number(feedTimeSec) : feedTimeSec;
+    state.health[source] = { lastOk: typeof t === 'number' && Number.isFinite(t) && t > 0 ? Math.min(now, t * 1000) : now };
   };
 
   const get = <T>(url: string) => deps.fetchJson<T>(url);
@@ -181,7 +184,7 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
         const now = deps.now();
         const json = await get(passioRealtimeUrl(agency, 'tripUpdates'));
         state.live[source] = parseTripUpdates(json, p, passioStopIds(d, source), now);
-        markOk(source);
+        markOk(source, (json as { header?: { timestamp?: unknown } } | null)?.header?.timestamp);
       });
 
       every(`${source} scheduled`, PASSIO_SCHEDULE_MS, () => {
@@ -201,8 +204,9 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
     every('BlueBikes status', 60 * SEC, async () => {
       const d = state.discovered!;
       if (!d.bikeStatusUrl) return;
-      state.bikes = applyStatus(d.bikes, await get(d.bikeStatusUrl));
-      markOk('bluebikes');
+      const json = await get<{ last_updated?: unknown } | null>(d.bikeStatusUrl);
+      state.bikes = applyStatus(d.bikes, json);
+      markOk('bluebikes', json?.last_updated);
     });
   }
 

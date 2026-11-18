@@ -10,8 +10,8 @@ interface StatusRow {
   num_bikes_available?: number;
   num_ebikes_available?: number;
   num_docks_available?: number;
-  is_installed?: number;
-  is_renting?: number;
+  is_installed?: number | boolean;
+  is_renting?: number | boolean;
 }
 
 const stationsOf = <T>(json: unknown): T[] =>
@@ -45,7 +45,7 @@ export function applyStatus(stations: BikeStation[], json: unknown): BikeStation
       bikes: s.num_bikes_available,
       ebikes: s.num_ebikes_available,
       docks: s.num_docks_available,
-      renting: s.is_renting === 1 && s.is_installed !== 0,
+      renting: (s.is_renting === 1 || s.is_renting === true) && s.is_installed !== 0 && s.is_installed !== false,
     };
   });
 }

@@ -78,7 +78,7 @@ export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: A
   const { discovered, nowMs, hide } = input;
 
   const status = {} as Record<Source, PanelStatus>;
-  for (const s of SOURCES) status[s] = sourceStatus(input.health[s], nowMs, input.scheduled[s].length > 0);
+  for (const s of SOURCES) status[s] = sourceStatus(input.health[s], nowMs, input.scheduled[s].some((d) => d.departureTime >= nowMs));
 
   const routes = new Map(discovered.routes);
   for (const r of input.extraRoutes) {
