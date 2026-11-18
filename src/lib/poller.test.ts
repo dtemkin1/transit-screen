@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultConfig } from '../config';
 import type { Discovered } from './discovery';
+import type { PassioStatic } from './gtfs/passio-static';
 import { createPoller, type PollerDeps } from './poller.svelte';
 import type { BikeStation, RouteInfo, Stop } from './types';
 import predictions from '../test/fixtures/mbta-predictions.json';
@@ -260,5 +261,146 @@ describe('poller', () => {
     await vi.advanceTimersByTimeAsync(0);
     h.poller.stop();
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+const mitStatic: PassioStatic = {
+  source: 'mit', mode: 'shuttle',
+  stops: new Map(['s1', 's2', 's3'].map((id) => [id, { id, name: id, lat: 0, lon: 0 }])),
+  routes: new Map([['R1', { id: 'R1', source: 'mit', mode: 'shuttle', shortName: 'R1', longName: 'Route 1', color: '#000000', textColor: '#FFFFFF' }]]),
+  trips: new Map([['t1', { routeId: 'R1', serviceId: 'svc', headsign: 'Kendall' }]]),
+  stopTimes: new Map([['t1', [
+    { stopId: 's1', seq: 1, dep: '12:30:00' }, { stopId: 's2', seq: 2, dep: '12:40:00' }, { stopId: 's3', seq: 3, dep: '12:50:00' },
+  ]]]),
+  calendar: new Map([['svc', {
+    days: Object.fromEntries(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((d) => [d, true])),
+    start: '20260101', end: '20261231',
+  }]]),
+  calendarDates: [],
+};
+const mitDiscovered = () => discovered({
+  stops: [stop('place-knncl', 'mbta', ['70071']), stop('s1', 'mit', ['s1'])],
+  passio: { mit: mitStatic },
+});
+const tripUpdates = {
+  entity: [{ trip_update: {
+    trip: { trip_id: 't1' },
+    stop_time_update: [{ stop_id: 's1', departure: { time: String((START + 10 * 60_000) / 1000) } }],
+  } }],
+};
+const serviceAlerts = { entity: [{ id: 'm1', alert: { header_text: { translation: [{ text: 'Shuttle detour' }] } } }] };
+
+describe('Passio polling', () => {
+  const passioOk = { ...ok, tripUpdates, serviceAlerts };
+
+  it('polls tripUpdates every 20s into live.mit and health.mit', async () => {
+    const h = harness(passioOk, async () => mitDiscovered());
+    h.poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.count('tripUpdates')).toBe(1);
+    expect(h.poller.state.live.mit).toHaveLength(1);
+    expect(h.poller.state.live.mit[0]).toMatchObject({ source: 'mit', routeId: 'R1', stopId: 's1', live: true });
+    expect(h.poller.state.health.mit.lastOk).toBe(START);
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(h.count('tripUpdates')).toBe(2);
+    expect(h.poller.state.health.mit.lastOk).toBe(START + 20_000);
+    expect(h.count('ezride') + h.count('charlesriver')).toBe(0);
+    h.poller.stop();
+  });
+
+  it('recomputes scheduled.mit from the static feed every 60s', async () => {
+    const h = harness(passioOk, async () => mitDiscovered());
+    h.poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const first = h.poller.state.scheduled.mit;
+    expect(first).toHaveLength(1);
+    expect(first[0]).toMatchObject({ source: 'mit', stopId: 's1', live: false, tripId: 't1' });
+    // 12:30 departure drops out of the window start once time passes it.
+    await vi.advanceTimersByTimeAsync(31 * 60_000);
+    expect(h.poller.state.scheduled.mit).toHaveLength(0);
+    h.poller.stop();
+  });
+
+  it('merges serviceAlerts into state.alerts every 2 min', async () => {
+    const h = harness(passioOk, async () => mitDiscovered());
+    h.poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.count('serviceAlerts')).toBe(1);
+    expect(h.poller.state.alerts.some((a) => a.source === 'mit' && a.header === 'Shuttle detour')).toBe(true);
+    expect(h.poller.state.alerts.some((a) => a.source === 'mbta')).toBe(true);
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(h.count('serviceAlerts')).toBe(2);
+    h.poller.stop();
+  });
+
+  it('a tripUpdates error keeps previous live.mit and lastOk', async () => {
+    let fail = false;
+    const h = harness({ ...passioOk, tripUpdates: (): unknown => { if (fail) throw new Error('x'); return tripUpdates; } },
+      async () => mitDiscovered());
+    h.poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    fail = true;
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(h.count('tripUpdates')).toBe(2);
+    expect(h.poller.state.live.mit).toHaveLength(1);
+    expect(h.poller.state.health.mit.lastOk).toBe(START);
+    h.poller.stop();
+  });
+});
+
+describe('discovery recovery', () => {
+  const full = () => discovered({
+    stops: [stop('place-knncl', 'mbta', ['70071']), stop('s1', 'mit', ['s1'])],
+    bikes: [bike('a'), bike('b')],
+    passio: { mit: mitStatic, ezride: { ...mitStatic, source: 'ezride' } },
+  });
+
+  it('retries an empty discovery after 60s and starts polls once non-empty', async () => {
+    let n = 0;
+    const h = harness(ok, async () => (++n === 1 ? discovered({ stops: [], bikes: [], bikeStatusUrl: undefined }) : discovered()));
+    h.poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.poller.state.discovered).toBeUndefined();
+    expect(h.calls).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(h.discover).toHaveBeenCalledTimes(2);
+    expect(h.count('/mbta/predictions')).toBe(1);
+    h.poller.stop();
+  });
+
+  it('re-discovers a partial result after 10 min and swaps in the fuller one', async () => {
+    let n = 0;
+    const h = harness({ ...ok, tripUpdates, serviceAlerts }, async () => (++n === 1 ? discovered({ bikeStatusUrl: undefined }) : full()));
+    h.poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.count(STATUS_URL)).toBe(0);
+    expect(h.poller.state.discovered?.passio.mit).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(h.discover).toHaveBeenCalledTimes(2);
+    expect(h.poller.state.discovered?.passio.mit).toBeDefined();
+    expect(h.poller.state.bikes.map((b) => b.id)).toEqual(['a', 'b']);
+    // Existing loops pick up the new discovery on their next run.
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(h.count(STATUS_URL)).toBeGreaterThan(0);
+    expect(h.poller.state.health.mit.lastOk).not.toBeNull();
+    expect(h.poller.state.health.bluebikes.lastOk).not.toBeNull();
+    // Complete now: no further re-discovery.
+    await vi.advanceTimersByTimeAsync(30 * 60_000);
+    expect(h.discover).toHaveBeenCalledTimes(2);
+    h.poller.stop();
+  });
+
+  it('ignores a smaller re-discovery result and keeps retrying', async () => {
+    let n = 0;
+    const first = discovered({ bikeStatusUrl: undefined });
+    const h = harness(ok, async () => (++n === 1 ? first : discovered({ stops: [], bikes: [bike('a')], bikeStatusUrl: undefined })));
+    h.poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(h.discover).toHaveBeenCalledTimes(2);
+    expect(h.poller.state.discovered?.stops).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(h.discover).toHaveBeenCalledTimes(3);
+    h.poller.stop();
   });
 });

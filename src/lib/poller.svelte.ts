@@ -35,6 +35,7 @@ const SEC = 1000;
 const MIN = 60 * SEC;
 const TICK_MS = 5 * SEC;
 const DISCOVERY_RETRY_MS = MIN;
+const REDISCOVER_MS = 10 * MIN;
 const PASSIO_SCHEDULE_MS = MIN;
 const SCHEDULE_WINDOW_MS = 60 * MIN;
 const RELOAD_HOUR = 4;
@@ -118,75 +119,97 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
     state.alerts = [...alertsBySource.mbta, ...alertsBySource.mit, ...alertsBySource.ezride];
   };
 
-  function startPolls(d: Discovered) {
-    const platformIds = [...new Set(d.stops.filter((s) => s.source === 'mbta').flatMap((s) => s.platformIds))];
+  const mbtaPlatformIds = (d: Discovered) =>
+    [...new Set(d.stops.filter((s) => s.source === 'mbta').flatMap((s) => s.platformIds))];
+  const passioStopIds = (d: Discovered, source: 'mit' | 'ezride') =>
+    new Set(d.stops.filter((s) => s.source === source).flatMap((s) => s.platformIds));
 
-    if (platformIds.length > 0) {
-      every('MBTA predictions', 20 * SEC, async () => {
-        const now = deps.now();
-        const parts = await Promise.all(
-          chunk(platformIds, 100).map(async (ids) => parsePredictions(await get(predictionsUrl(cfg, ids)), now)),
-        );
-        state.live.mbta = parts.flatMap((p) => p.departures);
-        predictionRoutes = dedupeRoutes(parts.flatMap((p) => p.routes));
-        publishRoutes();
-        markOk('mbta');
-      });
+  // Every poll reads state.discovered when it runs, so a re-discovery is picked up on the next cycle.
+  function startPolls() {
+    every('MBTA predictions', 20 * SEC, async () => {
+      const platformIds = mbtaPlatformIds(state.discovered!);
+      if (platformIds.length === 0) return;
+      const now = deps.now();
+      const parts = await Promise.all(
+        chunk(platformIds, 100).map(async (ids) => parsePredictions(await get(predictionsUrl(cfg, ids)), now)),
+      );
+      state.live.mbta = parts.flatMap((p) => p.departures);
+      predictionRoutes = dedupeRoutes(parts.flatMap((p) => p.routes));
+      publishRoutes();
+      markOk('mbta');
+    });
 
-      every('MBTA schedules', 10 * MIN, async () => {
-        const now = deps.now();
-        const parts = await Promise.all(
-          chunk(platformIds, 100).map(async (ids) => parseSchedules(await get(schedulesUrl(cfg, ids, now)))),
-        );
-        state.scheduled.mbta = parts.flatMap((p) => p.departures);
-        scheduleRoutes = dedupeRoutes(parts.flatMap((p) => p.routes));
-        publishRoutes();
-      });
+    every('MBTA schedules', 10 * MIN, async () => {
+      const platformIds = mbtaPlatformIds(state.discovered!);
+      if (platformIds.length === 0) return;
+      const now = deps.now();
+      const parts = await Promise.all(
+        chunk(platformIds, 100).map(async (ids) => parseSchedules(await get(schedulesUrl(cfg, ids, now)))),
+      );
+      state.scheduled.mbta = parts.flatMap((p) => p.departures);
+      scheduleRoutes = dedupeRoutes(parts.flatMap((p) => p.routes));
+      publishRoutes();
+    });
 
-      every('MBTA alerts', 2 * MIN, async () => {
-        const routeIds = new Set<string>();
-        for (const r of d.routes.values()) if (r.source === 'mbta') routeIds.add(r.id);
-        for (const r of state.extraRoutes) if (r.source === 'mbta') routeIds.add(r.id);
-        // MBTA ANDs route and stop filters, so each is its own request.
-        const urls = [
-          ...chunk([...routeIds], 100).map((ids) => alertsUrl(cfg, ids, [])),
-          ...chunk(platformIds, 100).map((ids) => alertsUrl(cfg, [], ids)),
-        ];
-        const lists = await Promise.all(urls.map(async (u) => parseAlerts(await get(u))));
-        alertsBySource.mbta = dedupe(lists.flat());
-        publishAlerts();
-      });
-    }
+    every('MBTA alerts', 2 * MIN, async () => {
+      const d = state.discovered!;
+      const platformIds = mbtaPlatformIds(d);
+      if (platformIds.length === 0) return;
+      const routeIds = new Set<string>();
+      for (const r of d.routes.values()) if (r.source === 'mbta') routeIds.add(r.id);
+      for (const r of state.extraRoutes) if (r.source === 'mbta') routeIds.add(r.id);
+      // MBTA ANDs route and stop filters, so each is its own request.
+      const urls = [
+        ...chunk([...routeIds], 100).map((ids) => alertsUrl(cfg, ids, [])),
+        ...chunk(platformIds, 100).map((ids) => alertsUrl(cfg, [], ids)),
+      ];
+      const lists = await Promise.all(urls.map(async (u) => parseAlerts(await get(u))));
+      alertsBySource.mbta = dedupe(lists.flat());
+      publishAlerts();
+    });
 
     for (const { source, agency } of PASSIO) {
-      const p = d.passio[source];
-      if (!p) continue;
-      const stopIds = new Set(d.stops.filter((s) => s.source === source).flatMap((s) => s.platformIds));
-
       every(`${source} trip updates`, 20 * SEC, async () => {
+        const d = state.discovered!;
+        const p = d.passio[source];
+        if (!p) return;
         const now = deps.now();
         const json = await get(passioRealtimeUrl(agency, 'tripUpdates'));
-        state.live[source] = parseTripUpdates(json, p, stopIds, now);
+        state.live[source] = parseTripUpdates(json, p, passioStopIds(d, source), now);
         markOk(source);
       });
 
       every(`${source} scheduled`, PASSIO_SCHEDULE_MS, () => {
-        state.scheduled[source] = scheduledDepartures(p, stopIds, deps.now(), SCHEDULE_WINDOW_MS);
+        const d = state.discovered!;
+        const p = d.passio[source];
+        if (!p) return;
+        state.scheduled[source] = scheduledDepartures(p, passioStopIds(d, source), deps.now(), SCHEDULE_WINDOW_MS);
       });
 
       every(`${source} alerts`, 2 * MIN, async () => {
+        if (!state.discovered!.passio[source]) return;
         alertsBySource[source] = parseServiceAlerts(await get(passioRealtimeUrl(agency, 'serviceAlerts')), source);
         publishAlerts();
       });
     }
 
-    if (d.bikeStatusUrl) {
-      const url = d.bikeStatusUrl;
-      every('BlueBikes status', 60 * SEC, async () => {
-        state.bikes = applyStatus(d.bikes, await get(url));
-        markOk('bluebikes');
-      });
-    }
+    every('BlueBikes status', 60 * SEC, async () => {
+      const d = state.discovered!;
+      if (!d.bikeStatusUrl) return;
+      state.bikes = applyStatus(d.bikes, await get(d.bikeStatusUrl));
+      markOk('bluebikes');
+    });
+  }
+
+  const size = (d: Discovered) => d.stops.length + d.bikes.length;
+  const isPartial = (d: Discovered) =>
+    !d.stops.some((s) => s.source === 'mbta') || !d.passio.mit || !d.passio.ezride || !d.bikeStatusUrl;
+
+  /** Adopts a discovery result, keeping the last known bike counts until the next status poll. */
+  function adopt(d: Discovered) {
+    const old = new Map(state.bikes.map((b) => [b.id, b]));
+    state.discovered = d;
+    state.bikes = d.bikes.map((b) => ({ ...old.get(b.id), ...b }));
   }
 
   function discoverThenPoll() {
@@ -194,13 +217,34 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
     deps.discover().then(
       (d) => {
         if (!running) return;
-        state.discovered = d;
-        state.bikes = d.bikes;
-        startPolls(d);
+        if (size(d) === 0) {
+          console.warn('poller: discovery found nothing, retrying in 60 s');
+          after(DISCOVERY_RETRY_MS, discoverThenPoll);
+          return;
+        }
+        adopt(d);
+        startPolls();
+        if (isPartial(d)) after(REDISCOVER_MS, rediscover);
       },
       (e) => {
         console.warn('poller: discovery failed, retrying in 60 s', e);
         after(DISCOVERY_RETRY_MS, discoverThenPoll);
+      },
+    );
+  }
+
+  /** Retries a partial discovery every 10 min; a smaller result never replaces the current one. */
+  function rediscover() {
+    if (!running) return;
+    deps.discover().then(
+      (d) => {
+        if (!running) return;
+        if (size(d) >= size(state.discovered!)) adopt(d);
+        if (isPartial(state.discovered!)) after(REDISCOVER_MS, rediscover);
+      },
+      (e) => {
+        console.warn('poller: re-discovery failed, retrying in 10 min', e);
+        after(REDISCOVER_MS, rediscover);
       },
     );
   }
