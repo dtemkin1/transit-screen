@@ -8,10 +8,15 @@ export interface Config {
   walkSpeedMps: number; walkDetourFactor: number;
 }
 
+/** An unset or empty VITE_WORKER_URL (e.g. an unset CI variable) falls back to local dev. */
+export function pickWorkerUrl(raw: string | undefined): string {
+  return raw || 'http://localhost:8787';
+}
+
 export const defaultConfig: Config = {
   name: 'W41',
   location: { lat: 42.35982, lon: -71.0961 },
-  workerUrl: import.meta.env.VITE_WORKER_URL ?? 'http://localhost:8787',
+  workerUrl: pickWorkerUrl(import.meta.env.VITE_WORKER_URL),
   modes: {
     subway: { maxWalkMin: 15 },
     bus: { maxWalkMin: 5 },

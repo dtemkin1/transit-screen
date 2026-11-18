@@ -19,9 +19,9 @@ Settings live in `src/config.ts` (`defaultConfig`). The board can override some 
 | `lat`, `lon` | `?lat=42.3598&lon=-71.0961` | Location to measure walking from. Both are needed; invalid values are ignored. |
 | `name` | `?name=Lobby` | Label shown in the header. |
 
-Other `Config` fields are set in code only:
+Other `Config` fields are set in code only (`src/config.ts`):
 
-- `location`, `name`: defaults to W41, `{ lat: 42.35982, lon: -71.0961 }`.
+- `location`, `name`: defaults to W41, `{ lat: 42.35982, lon: -71.0961 }`. URL overrides apply, see above.
 - `workerUrl`: from the `VITE_WORKER_URL` build variable (default `http://localhost:8787`).
 - `modes`: maximum walk per mode (`subway` 15 min, `bus` 5, `ezride` 6, `shuttle` 5, `bikes` 4 min, plus `maxStations: 4` for bikes).
 - `pin`, `hide`: stop or route IDs to pin or hide.
@@ -85,10 +85,10 @@ The board reloads itself daily at about 04:00 America/New_York, but only once th
 The workflow in `.github/workflows/deploy.yml` runs `npm ci`, `npm test`, and `npm run build`, then publishes `dist/`. One-time setup:
 
 1. In the repo, go to **Settings → Pages** and set **Source** to **GitHub Actions**.
-2. Go to **Settings → Secrets and variables → Actions → Variables** and add `WORKER_URL` = `https://<your-worker>.<account>.workers.dev`. The build reads it as `VITE_WORKER_URL`.
+2. Go to **Settings → Secrets and variables → Actions → Variables** and add `WORKER_URL` = `https://<your-worker>.<account>.workers.dev`. The build reads it as `VITE_WORKER_URL`. If `WORKER_URL` is not set, the deploy fails at the "Check WORKER_URL" step instead of publishing a board that cannot reach its Worker.
 3. Make sure the Pages origin (`https://dtemkin1.github.io`) is in `ALLOWED_ORIGINS`.
 
-The site is served at `https://dtemkin1.github.io/transit-screen/`. The Vite config uses a relative base, so the same build also works from a subpath.
+Once Pages is enabled, the site will be at `https://dtemkin1.github.io/transit-screen/`. The Vite config uses a relative base, so the same build also works from a subpath.
 
 ## Deploy to Athena
 
@@ -96,6 +96,7 @@ Athena serves the static build from `~/www/transit-screen/`:
 
 ```sh
 VITE_WORKER_URL=https://<your-worker>.<account>.workers.dev npm run build
+mkdir -p ~/www/transit-screen && rm -rf ~/www/transit-screen/assets
 cp -r dist/. ~/www/transit-screen/
 ```
 

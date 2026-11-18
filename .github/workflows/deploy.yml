@@ -28,6 +28,17 @@ jobs:
 
       - run: npm test
 
+      - run: npm ci
+        working-directory: worker
+
+      - run: npm test
+        working-directory: worker
+
+      - name: Check WORKER_URL
+        run: test -n "$VITE_WORKER_URL" || { echo "::error::repo variable WORKER_URL is not set"; exit 1; }
+        env:
+          VITE_WORKER_URL: ${{ vars.WORKER_URL }}
+
       - name: Build
         run: npm run build
         env:

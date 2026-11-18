@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { resolveConfig, defaultConfig } from './config';
+import { resolveConfig, defaultConfig, pickWorkerUrl } from './config';
+
+describe('pickWorkerUrl', () => {
+  it('uses the configured URL when set', () => {
+    expect(pickWorkerUrl('https://w.example')).toBe('https://w.example');
+  });
+  it('falls back to localhost when unset or empty', () => {
+    expect(pickWorkerUrl(undefined)).toBe('http://localhost:8787');
+    expect(pickWorkerUrl('')).toBe('http://localhost:8787');
+  });
+});
 
 describe('resolveConfig', () => {
   it('defaults to W41', () => {
