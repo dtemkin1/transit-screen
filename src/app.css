@@ -1,18 +1,9 @@
-/*
- * MIT School of Architecture and Planning identity, after its inner pages (sap.mit.edu):
- * content in black on light gray, inside an L-shaped frame (top band and right rail) in one
- * SA+P color, which also draws the rails between panels. The frame color comes from
- * src/lib/palette.ts (--frame / --on-frame are set at startup); it rotates daily by default.
- * Square corners; a tight grotesk for titles; serif for the building name.
- *
- * Type: SA+P's own faces ("System", "Rhymes Text") aren't licensable here, so the stacks
- * lead with the closest Adobe Fonts (loaded only when VITE_ADOBE_FONTS_KIT is set), then
- * SA+P's names in case they're installed, then Helvetica/Arial and Georgia.
- * Sized from the screen's short side so a 1080p and a 4K set read the same from ~5 m.
- */
+/* SA+P identity (sap.mit.edu inner pages): black on light gray inside an L-frame in one SA+P color. */
+/* Type stacks: closest Adobe Fonts (kit optional), then SA+P's own names, then Helvetica/Arial and Georgia. */
 :root {
   --frame: #ffc486;
   --on-frame: #000000;
+  --rail: #6b0033;      /* set per palette; 3:1+ against the page */
   --page: #f5f5f5;      /* SA+P light gray */
   --text: #000000;      /* 19:1 on the page */
   --muted: #595959;     /* 6.4:1 */
@@ -20,13 +11,14 @@
   --band: #6b0033;      /* alert band */
   --on-band: #ffffff;   /* 12.6:1 */
   --rule: #d2d2d2;
-  --rail-w: 0.8vmin;
+  --rail-w: 0.6vmin;
   --font-sans: 'neue-haas-unica', 'System', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --font-display: 'neue-haas-grotesk-display', 'System', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --font-serif: 'freight-text-pro', 'Rhymes Text', 'Rhymes', Georgia, 'Times New Roman', serif;
   color-scheme: light;
   font-family: var(--font-sans);
-  font-size: clamp(18px, 2.9vmin, 64px);
+  /* Scales with the screen for the TV; the rem part makes browser zoom enlarge it too. */
+  font-size: clamp(16px, calc(1.5vmin + 0.95rem), 64px);
   line-height: 1.2;
   color: var(--text);
   background: var(--frame);
@@ -45,15 +37,14 @@ body {
   height: 100%;
   overflow: hidden;
   background: var(--frame);
-  /* A wall display: no pointer, no accidental selection highlight if someone taps the screen. */
-  cursor: none;
-  user-select: none;
 }
 
-/*
- * --inset (from ?inset=, in % of the shorter side) keeps content clear of TV overscan, which
- * crops the edges on many sets. The margin shows the frame color, so it reads as part of the frame.
- */
+/* App sets data-idle after 3 s without pointer movement. */
+html[data-idle] {
+  cursor: none;
+}
+
+/* ?inset= margin against TV overscan, shown in the frame color. */
 #app {
   height: 100%;
   padding: var(--inset, 0);

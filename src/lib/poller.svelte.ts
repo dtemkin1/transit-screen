@@ -30,6 +30,7 @@ export interface PollerState {
   bikes: BikeStation[];
   extraRoutes: RouteInfo[];
   now: number;
+  discoveryFailures: number;  // failed or empty discoveries in a row, before the first success
 }
 
 const SEC = 1000;
@@ -78,6 +79,7 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
     alerts: [],
     bikes: [],
     extraRoutes: [],
+    discoveryFailures: 0,
     now: deps.now(),
   });
 
@@ -111,10 +113,7 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
     return typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : undefined;
   };
 
-  /**
-   * A feed's own timestamp (epoch seconds) caps freshness, so a frozen document does not read
-   * as live. `validForSec` is how long the feed says that data stays current (GBFS `ttl`).
-   */
+  // The feed's own timestamp (plus GBFS `ttl`) caps freshness, so a frozen feed doesn't read as live.
   const markOk = (source: Source, feedTimeSec?: unknown, validForSec?: unknown) => {
     const now = deps.now();
     const t = seconds(feedTimeSec);
@@ -228,11 +227,7 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
     ...(d.bikeStatusUrl ? (['bluebikes'] as const) : []),
   ];
 
-  /**
-   * Adopts a discovery result, keeping the last known bike counts until the next status poll.
-   * A source polled for the first time counts as fresh from now, so its panel does not say
-   * "Live data unavailable" before the first poll lands; if its polls keep failing it ages as usual.
-   */
+  // Keeps last known bike counts; a newly polled source starts fresh so it isn't "unavailable" before its first poll.
   function adopt(d: Discovered) {
     const old = new Map(state.bikes.map((b) => [b.id, b]));
     state.discovered = d;
@@ -251,9 +246,11 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
       if (!running) return;
       if (size(d) === 0) {
         console.warn('poller: discovery found nothing, retrying in 60 s');
+        state.discoveryFailures++;
         after(DISCOVERY_RETRY_MS, discoverThenPoll);
         return;
       }
+      state.discoveryFailures = 0;
       adopt(d);
       if (!pollsStarted) {
         pollsStarted = true;
@@ -262,6 +259,7 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
       if (isPartial(d)) after(REDISCOVER_MS, rediscover);
     } catch (e) {
       console.warn('poller: discovery failed, retrying in 60 s', e);
+      if (!state.discovered) state.discoveryFailures++;
       after(DISCOVERY_RETRY_MS, discoverThenPoll);
     }
   }

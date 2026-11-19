@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { contrastRatio } from './display';
 import { PALETTES, isPaletteName, paletteFor } from './palette';
+
+const PAGE = '#f5f5f5';
 
 describe('paletteFor', () => {
   it('a named palette is used every day', () => {
@@ -12,8 +15,7 @@ describe('paletteFor', () => {
     const days = Array.from({ length: names.length }, (_, i) => `202611${String(17 + i).padStart(2, '0')}`);
     const picked = days.map((d) => paletteFor('rotate', d));
     expect(new Set(picked.map((p) => p.frame)).size).toBe(names.length);
-    const next = paletteFor('rotate', '20261117');
-    expect(paletteFor('rotate', '20261117')).toEqual(next); // same day, same palette
+    expect(paletteFor('rotate', '20261117')).toEqual(paletteFor('rotate', '20261117'));
   });
 
   it('rotation continues across month and year boundaries', () => {
@@ -22,9 +24,15 @@ describe('paletteFor', () => {
 });
 
 describe('PALETTES', () => {
-  it('match the SA+P frame colors, with readable text on each', () => {
-    expect(PALETTES.apricot).toEqual({ frame: '#ffc486', onFrame: '#000000' });
-    expect(PALETTES.green).toEqual({ frame: '#707f00', onFrame: '#ffffff' });
+  it('match the SA+P frame colors and their dark partners from sap.mit.edu', () => {
+    expect(PALETTES.apricot).toEqual({ frame: '#ffc486', onFrame: '#000000', rail: '#6b0033' });
+    expect(PALETTES.pink).toEqual({ frame: '#eeb1ff', onFrame: '#000000', rail: '#02777c' });
+  });
+  it('text on every frame passes 4.5:1, so small header text (like "PM") reads', () => {
+    for (const p of Object.values(PALETTES)) expect(contrastRatio(p.onFrame, p.frame)).toBeGreaterThanOrEqual(4.5);
+  });
+  it('every rail separates panels at 3:1 or more against the page', () => {
+    for (const p of Object.values(PALETTES)) expect(contrastRatio(p.rail, PAGE)).toBeGreaterThanOrEqual(3);
   });
   it('isPaletteName', () => {
     expect(isPaletteName('pink')).toBe(true);

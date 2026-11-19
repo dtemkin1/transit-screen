@@ -3,10 +3,7 @@ import type { Departure } from '../types';
 const WINDOW_SEC = 60 * 60;
 const BRD_ARR_GRACE_SEC = 30;
 
-/**
- * Countdown text for a departure, or null when it should not be shown. An MBTA status
- * ("Stopped 5 stops away") is shown beside the countdown by the board, never instead of it.
- */
+// Countdown text, or null when the departure shouldn't show. MBTA status text goes beside it, never instead.
 export function countdownLabel(d: Departure, nowMs: number): string | null {
   const sec = (d.departureTime - nowMs) / 1000;
   if (sec > WINDOW_SEC) return null;

@@ -17,20 +17,36 @@
   const poller = demo !== null ? createDemoPoller(demo) : createPoller(cfg);
   const data = poller.state;
 
-  // Chosen once per page load; the board reloads daily at 04:00, which moves a rotating palette on.
+  // Picked once per load; the daily 04:00 reload moves a rotating palette on.
   const palette = paletteFor(cfg.palette, serviceDate(Date.now()));
-  document.documentElement.style.setProperty('--frame', palette.frame);
-  document.documentElement.style.setProperty('--on-frame', palette.onFrame);
-  document.documentElement.style.setProperty('--inset', `${cfg.inset}vmin`);
+  const root = document.documentElement;
+  root.style.setProperty('--frame', palette.frame);
+  root.style.setProperty('--on-frame', palette.onFrame);
+  root.style.setProperty('--rail', palette.rail);
+  root.style.setProperty('--inset', `${cfg.inset}vmin`);
 
   $effect(() => {
     poller.start();
     return () => poller.stop();
   });
 
-  // The one-column portrait layout only pays off on screens clearly taller than wide; a square
-  // screen stacked four panels too short to hold a row. The result goes on <html data-layout>,
-  // which the header's styles read too, so the two can't disagree.
+  // Hide the pointer on the wall display, but only once it sits still, so a laptop viewer keeps it.
+  $effect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const wake = () => {
+      delete root.dataset.idle;
+      clearTimeout(timer);
+      timer = setTimeout(() => (root.dataset.idle = ''), 3_000);
+    };
+    wake();
+    addEventListener('pointermove', wake);
+    return () => {
+      clearTimeout(timer);
+      removeEventListener('pointermove', wake);
+    };
+  });
+
+  // One column only on screens clearly taller than wide; the header reads the same <html data-layout>.
   const portraitQuery = matchMedia('(max-aspect-ratio: 5/6)');
   let landscape = $state(!portraitQuery.matches);
   $effect(() => {
@@ -68,18 +84,17 @@
       .filter((col) => col.length > 0);
   });
 
-  /**
-   * Each panel's share of its column. Fixed, so panel borders don't move as departures come
-   * and go (sizing from each poll's rows made panels jump and re-trim every few seconds).
-   */
+  // Fixed shares, so panel borders stay put as departures come and go.
   const SHARE: Record<PanelId, number> = { subway: 3, bus: 2, shuttle: 1.6, bikes: 1.6 };
 </script>
 
 <div class="screen">
-  <Header name={cfg.name} place={cfg.place} now={data.now} />
+  <Header name={cfg.name} place={cfg.place} now={data.now} tag={demo !== null ? 'Sample data' : undefined} />
 
   <main>
-    {#if !board}
+    {#if !board && data.discoveryFailures > 0}
+      <p class="message">Can't reach the transit data service. Trying again every minute.</p>
+    {:else if !board}
       <p class="message">Finding nearby transit…</p>
     {:else if columns.length === 0}
       <p class="message">No departures nearby in the next hour.</p>
@@ -110,10 +125,7 @@
 </div>
 
 <style>
-  /*
-   * SA+P's L-frame: the frame color shows as the header band, a rail down the right edge,
-   * and the rails between panels (the screen's background showing through the gaps).
-   */
+  /* SA+P's L-frame: header band and right edge in the frame color; dark rails between panels. */
   .screen {
     height: 100%;
     display: flex;
@@ -126,6 +138,7 @@
     min-height: 0;
     display: flex;
     gap: var(--rail-w);
+    background: var(--rail);
   }
   .column {
     flex: 1;
@@ -133,6 +146,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--rail-w);
+    background: var(--rail);
   }
   .slot {
     flex-basis: 0;
@@ -143,7 +157,9 @@
     flex: 1;
     display: grid;
     place-items: center;
+    padding: 0 2.2vmin;
     background: var(--page);
+    text-align: center;
     font-family: var(--font-serif);
     font-size: 1.3em;
     color: var(--muted);
@@ -152,7 +168,7 @@
     margin: 0;
     padding: 0.5vmin 2.2vmin 0.8vmin;
     background: var(--page);
-    border-top: var(--rail-w) solid var(--frame);
+    border-top: var(--rail-w) solid var(--rail);
     font-family: var(--font-serif);
     font-size: 0.75em;
     font-style: italic;

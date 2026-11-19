@@ -286,7 +286,7 @@ describe('buildBoard: staleness and merge', () => {
 
   it('scheduled copy of a trip live data says has left is dropped', () => {
     // The live prediction for trip t1 has already left (outside the window), so the
-    // key falls back to schedule — but t1's scheduled copy must not reappear.
+    // key falls back to schedule, but t1's scheduled copy must not reappear.
     const { panels } = buildBoard(input({
       live: withLive([red('70071', { min: -1, trip: 't1' })]),
       scheduled: withLive([

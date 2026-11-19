@@ -1,12 +1,5 @@
-/**
- * Development-only sample data (`?demo` on the dev server) that puts every state the board can
- * show on screen at once, for checking the design without waiting for live data to produce it:
- *   ?demo          alerts, MBTA status text, a delayed feed, schedule fallback, long names,
- *                  a closed dock, a dock with no data, and a shuttle color with no text color.
- *   ?demo=outage   MBTA and EZRide down with no schedule ("Live data unavailable").
- *   ?demo=loading  before discovery ("Finding nearby transit…").
- * App only imports this under import.meta.env.DEV, so it is not in production builds.
- */
+// Dev-only sample data covering every board state: ?demo, ?demo=outage, ?demo=loading, ?demo=failing.
+// App imports it only under import.meta.env.DEV, so production builds never include it.
 import type { Discovered } from './discovery';
 import type { PollerState } from './poller.svelte';
 import type { BikeStation, Departure, Mode, RouteInfo, Source, Stop } from './types';
@@ -93,7 +86,8 @@ export function createDemoPoller(kind: string) {
   };
 
   const state: PollerState = $state({
-    discovered: kind === 'loading' ? undefined : discovered,
+    discovered: kind === 'loading' || kind === 'failing' ? undefined : discovered,
+    discoveryFailures: kind === 'failing' ? 3 : 0,
     live: outage ? { ...bySource(live), mbta: [], ezride: [] } : bySource(live),
     scheduled: outage ? empty() : bySource(scheduled),
     health: outage

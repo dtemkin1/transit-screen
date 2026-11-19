@@ -40,11 +40,8 @@ function groupBy<T>(items: T[], key: (t: T) => string): Map<string, T[]> {
   return out;
 }
 
-/**
- * Within a minute, these are one vehicle shown twice and are merged: the same trip reported
- * twice, the same vehicle on two back-to-back trips (Passio loops), and MBTA "ADDED" trips
- * predicted beside a scheduled one. Two different vehicles close together both show.
- */
+// One vehicle shown twice within a minute (same trip, same vehicle, or an MBTA "ADDED" copy) is merged;
+// two different vehicles close together both show.
 const DUPLICATE_WINDOW_MS = 60_000;
 const same = (x?: string, y?: string) => x !== undefined && x === y;
 const isDuplicate = (a: Placed, b: Placed) =>
@@ -52,10 +49,7 @@ const isDuplicate = (a: Placed, b: Placed) =>
   (same(a.d.tripId, b.d.tripId) || same(a.d.vehicleId, b.d.vehicleId) ||
     [a.d.tripId, b.d.tripId].some((id) => id?.startsWith('ADDED-')));
 
-/**
- * ≤ 3 cells in time order, with the departure behind the first one (it labels the row).
- * Departures you can't walk to in time are left out, and duplicates are merged.
- */
+// Up to 3 reachable, de-duplicated times, plus the departure behind the first (it labels the row).
 function timeCells(placed: Placed[], nowMs: number): { cells: TimeCell[]; lead?: Placed } {
   const shown: Placed[] = [];
   for (const p of [...placed].sort((a, b) => a.d.departureTime - b.d.departureTime)) {
@@ -98,10 +92,7 @@ const NOTE: Partial<Record<PanelStatus, string>> = {
   'unavailable': 'live data unavailable',
 };
 
-/**
- * One line per agency whose data isn't fully live. A panel with several agencies names the
- * one each note is about, so a stale EZRide feed doesn't read as "all buses unavailable".
- */
+// One note per agency that isn't fully live; shared panels name the agency so live rows aren't doubted.
 function panelNotes(sources: Source[], status: Record<Source, PanelStatus>): string[] {
   return sources.flatMap((s) => {
     const note = NOTE[status[s]];
@@ -194,9 +185,8 @@ export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: A
   const subwayTitle = subwayRoutes.size === 1 ? [...subwayRoutes][0].longName : 'Subway';
   emit('subway', subwayTitle, subwayGroups);
 
-  // Bus and shuttle: one row per (source, direction), at the closest stop serving it.
-  // "Serving" ignores the time window and the merge, so the chosen stop does not flip
-  // as departures come and go; if that stop has nothing in the window, the row is dropped.
+  // Bus and shuttle: one row per direction at the closest stop serving it, chosen outside the time
+  // window so it never flips; if that stop has nothing in the window, the row is dropped.
   const serving = new Map<string, Set<Stop>>();
   const serve = (key: string, stop: Stop | undefined) => {
     if (!stop) return;

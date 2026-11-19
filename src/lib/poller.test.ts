@@ -444,6 +444,26 @@ describe('discovery recovery', () => {
     h.poller.stop();
   });
 
+  it('counts failed or empty discoveries so the screen can say so, and resets on success', async () => {
+    let n = 0;
+    const h = harness(ok, async () => {
+      n++;
+      if (n === 1) throw new Error('worker down');
+      if (n === 2) return discovered({ stops: [], bikes: [], bikeStatusUrl: undefined });
+      return discovered();
+    });
+    expect(h.poller.state.discoveryFailures).toBe(0);
+    h.poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.poller.state.discoveryFailures).toBe(1);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(h.poller.state.discoveryFailures).toBe(2);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(h.poller.state.discoveryFailures).toBe(0);
+    expect(h.poller.state.discovered).toBeDefined();
+    h.poller.stop();
+  });
+
   it('re-discovers a partial result after 10 min and swaps in the fuller one', async () => {
     let n = 0;
     const h = harness({ ...ok, tripUpdates, serviceAlerts }, async () => (++n === 1 ? discovered({ bikeStatusUrl: undefined }) : full()));

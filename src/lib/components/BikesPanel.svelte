@@ -17,7 +17,7 @@
       {#if s.renting === false}
         <span class="closed">Closed</span>
       {:else if s.bikes === undefined}
-        <span class="sub">No data</span>
+        <span class="sub">Status unavailable</span>
       {:else}
         <span class="bikes" class:empty={s.bikes === 0}>{s.bikes}<small> {plural(s.bikes, 'bike')}</small></span>
         {#if s.docks !== undefined}<span class="sub">{countNoun(s.docks, 'open dock')}</span>{/if}

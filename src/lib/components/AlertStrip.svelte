@@ -46,6 +46,11 @@
     line-clamp: 2;
     overflow: hidden;
   }
+  /* Narrow screens get a third line, so the alert isn't cut mid-sentence. */
+  :global([data-layout='portrait']) .text {
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+  }
   .count {
     flex: none;
     font-size: 0.85em;

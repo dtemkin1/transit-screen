@@ -36,11 +36,8 @@ export function contrastRatio(a: string, b: string): number {
 /** Badge text is large and bold, so 3:1 (WCAG large text) is the floor. */
 const BADGE_MIN_CONTRAST = 3;
 
-/**
- * The colored route marker: short names up to 4 characters as is, longer ones as initials.
- * The feed's text color is used when it reads on the badge; otherwise (some Passio routes
- * have none) black or white, whichever reads better.
- */
+// Route marker: short names as is, long ones as initials; text color falls back to black or white
+// when the feed's doesn't read (some Passio routes have none).
 export function routeBadge(r: RouteInfo): Badge {
   if (r.source === 'ezride') return { text: 'EZ', bg: EZRIDE_COLOR, fg: '#FFFFFF' };
   const name = r.shortName || r.longName;

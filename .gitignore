@@ -26,8 +26,3 @@ dist-ssr
 *.sln
 *.sw?
 
-.superpowers/
-
-worker/node_modules
-worker/.wrangler
-worker/.dev.vars

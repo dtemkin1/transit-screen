@@ -41,11 +41,13 @@ Other `Config` fields are set in code only (`src/config.ts`):
 
 ### Look
 
-The board follows the MIT School of Architecture and Planning identity as used on [sap.mit.edu](https://sap.mit.edu): departures in black on light gray, inside an L-shaped frame (header band, right rail, and the rails between panels) in one SA+P color. Like the site, where each page has its own color, the frame color changes every day at the 04:00 reload. Pin one with `palette` (`apricot` is the color of the site's Met Warehouse page). Colors are in `src/lib/palette.ts`; the rest of the styling is in `src/app.css`.
+The board follows the MIT School of Architecture and Planning identity as used on [sap.mit.edu](https://sap.mit.edu): departures in black on light gray, inside an L-shaped frame (header band and right edge) in one SA+P color. The rails between panels use the dark color SA+P pairs with it (burgundy, olive, or teal), since the light frame colors are too pale to separate panels on gray. Like the site, where each page has its own color, the frame color changes every day at the 04:00 reload. Pin one with `palette` (`apricot` is the color of the site's Met Warehouse page). Colors are in `src/lib/palette.ts`; the rest of the styling is in `src/app.css`.
 
 #### Checking the design
 
-On the dev server (`npm run dev`), add `?demo` to the URL to see sample data with every state the board can show: an alert, MBTA status text, a delayed feed, a schedule fallback, long names, and a shuttle badge color with no text color. `?demo=outage` shows the "Live data unavailable" panels and `?demo=loading` the startup screen. Combine with `palette` to check each color. Demo mode is not included in production builds.
+On the dev server (`npm run dev`), add `?demo` to the URL to see sample data with every state the board can show: an alert, MBTA status text, a delayed feed, a schedule fallback, long names, and a shuttle badge color with no text color. `?demo=outage` shows the "Live data unavailable" panels, `?demo=loading` the startup screen, and `?demo=failing` the message shown when the transit data service can't be reached. Combine with `palette` to check each color. The header says "Sample data" whenever demo mode is on, and demo mode is not included in production builds.
+
+The mouse pointer hides after 3 seconds without movement, so it stays out of the way on the TV but is there when someone uses a mouse.
 
 #### Fonts (optional, Adobe Fonts)
 

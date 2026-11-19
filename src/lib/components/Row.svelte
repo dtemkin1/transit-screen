@@ -6,7 +6,7 @@
 
   const MINUTES = /^(\d+) min$/;
 
-  const badge = $derived(routeBadge(row.route));
+  const colors = $derived(routeBadge(row.route));
   const next = $derived(row.times[0]);
   const nextMin = $derived(next ? MINUTES.exec(next.label)?.[1] : undefined);
   const later = $derived(row.times.slice(1));
@@ -20,13 +20,12 @@
       ? `${shortStopName(row.stopName)}, ${row.walkEstimated ? '~' : ''}${row.walkMin} min walk`
       : '',
   );
-  // MIT shuttles are known by route ("Tech Shuttle"), and their loops' last stop says little on
-  // its own, so they lead with the route name. Everything else leads with the destination.
+  // MIT shuttles are known by route ("Tech Shuttle"); everything else leads with the destination.
   const routeName = $derived(row.route.source === 'mit' ? row.route.longName || row.route.shortName : '');
 </script>
 
 <div class="row">
-  <span class="badge" style:background={badge.bg} style:color={badge.fg}>{badge.text}</span>
+  <span class="badge" style:background={colors.bg} style:color={colors.fg}>{colors.text}</span>
   <div class="dest">
     <span class="headsign">
       {#if routeName}{routeName}{#if row.headsign && row.headsign !== routeName}<span class="toward">{` to ${row.headsign}`}</span>{/if}{:else}{row.headsign}{/if}
@@ -53,7 +52,7 @@
   .row {
     height: var(--row);
     display: grid;
-    /* A fixed badge column, so every destination starts at the same x. */
+    /* Fixed badge column, so destinations line up. */
     grid-template-columns: 2.7em minmax(0, 1fr) auto;
     align-items: center;
     column-gap: 0.55em;

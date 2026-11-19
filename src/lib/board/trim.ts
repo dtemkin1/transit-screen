@@ -11,11 +11,8 @@ const compact = (groups: BoardGroup[]): BoardGroup[] =>
 
 const nextDeparture = (r: BoardRow) => r.times[0]?.departureTime ?? Infinity;
 
-/**
- * Cuts a panel down to at most `maxLines` lines (a row is one line, a group header
- * `headerWeight` lines) by dropping whole rows, those whose next departure is furthest
- * away first. Groups left empty go with their headers.
- */
+// Fits a panel to `maxLines` (a header counts `headerWeight`) by dropping whole rows,
+// furthest next departure first; emptied groups go with their headers.
 export function trimPanel(p: BoardPanel, maxLines: number, headerWeight = 1): BoardPanel {
   if (lineCount(p.groups, headerWeight) <= maxLines) return p;
   let groups = compact(p.groups);
