@@ -114,6 +114,14 @@ describe('parseServiceAlerts', () => {
     const json = { entity: [{ id: 'w', alert: { header_text: { translation: [{ text: 'No service today' }] } } }] };
     expect(parseServiceAlerts(json, 'mit')[0]).toMatchObject({ routeIds: [], agencyWide: true });
   });
+  it('drops Passio\'s "Service Alert:" prefix and adds the description (EZRide\'s construction detour)', () => {
+    const json = { entity: [{ id: '1', alert: {
+      header_text: { translation: [{ text: 'Service Alert: Construction Detour' }] },
+      description_text: { translation: [{ text: 'Inbound Stops Erie St./Pacific St. closed on 11/20.' }] },
+    } }] };
+    expect(parseServiceAlerts(json, 'ezride')[0].header)
+      .toBe('Construction Detour: Inbound Stops Erie St./Pacific St. closed on 11/20.');
+  });
   it('treats a feed with no entity array as empty', () => {
     expect(parseServiceAlerts(liveAlerts, 'mit')).toEqual([]);
   });

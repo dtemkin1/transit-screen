@@ -50,6 +50,8 @@ export interface Alert {
   id: string; source: Source; header: string; routeIds: string[]; stopIds: string[];
   /** Names no route: shown whenever the feed has a stop on the board. */
   agencyWide?: boolean;
+  /** The feed's name, set by the board, so a strip of alerts from several agencies says whose each is. */
+  agency?: string;
 }
 /** What a station's count is of: "bike" / "e-bike", or "car". */
 export interface Unit { one: string; electric?: string }

@@ -507,6 +507,13 @@ describe('buildBoard: alerts', () => {
     expect(buildBoard(input({ live, alerts })).alerts.map((a) => a.id)).toEqual(['mit-wide']);
   });
 
+  it('labels each alert with its agency, since an agency-wide one names no route', () => {
+    const alerts: Alert[] = [{ ...alert('detour', 'mit', []), agencyWide: true }];
+    const live = withLive([], { mit: [dep('mit', 'shuttle', 'tech', 'm1')({ min: 4 })] });
+    const name = input().feeds.find((f) => f.id === 'mit')!.name;
+    expect(buildBoard(input({ live, alerts })).alerts[0].agency).toBe(name);
+  });
+
   it('hide removes an alert by id, bare or with its source', () => {
     const alerts = [alert('a1', 'mbta', ['Red']), alert('a2', 'mbta', ['Red']), alert('a3', 'mbta', ['Red'])];
     const live = withLive([red('70071', { min: 12 })]);

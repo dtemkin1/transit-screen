@@ -213,7 +213,8 @@ export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: A
     if (groups.length > 0 || failing) panels.push(panel(groups));
   }
 
-  return { panels, alerts: relevantAlerts(input.alerts, shownStops, shownRoutes, hide) };
+  const alerts = relevantAlerts(input.alerts, shownStops, shownRoutes, hide).map((a) => ({ ...a, agency: names.get(a.source) }));
+  return { panels, alerts };
 }
 
 function relevantAlerts(alerts: Alert[], stops: Set<Stop>, routes: Set<string>, hide: string[]): Alert[] {

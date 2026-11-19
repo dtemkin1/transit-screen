@@ -58,13 +58,23 @@ export function parseTripUpdates(
   return out.sort((a, b) => a.departureTime - b.departureTime);
 }
 
+const textOf = (v: unknown) => {
+  const t = obj(arr(obj(v).translation)[0]).text;
+  return typeof t === 'string' ? t.trim() : '';
+};
+/** Passio prefixes every header with this, which says nothing on a strip that only shows alerts. */
+const BOILERPLATE = /^service alert\s*:\s*/i;
+
 export function parseServiceAlerts(json: unknown, source: Source): Alert[] {
   const out: Alert[] = [];
   arr(obj(json).entity).forEach((entity, i) => {
     const e = obj(entity);
     const alert = obj(e.alert);
-    const header = obj(arr(obj(alert.header_text).translation)[0]).text;
-    if (typeof header !== 'string' || !header) return;
+    const title = textOf(alert.header_text).replace(BOILERPLATE, '');
+    if (!title) return;
+    // A header like "Construction Detour" says nothing about where; the description does.
+    const detail = textOf(alert.description_text);
+    const header = detail && detail !== title ? `${title}: ${detail}` : title;
     const informed = arr(alert.informed_entity).map(obj);
     const ids = (k: string) => informed.flatMap((x) => (x[k] != null ? [String(x[k])] : []));
     const routeIds = ids('route_id');
