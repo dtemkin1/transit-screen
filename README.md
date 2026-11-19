@@ -10,6 +10,20 @@ Agencies: MBTA, MIT Shuttles (Passio, `mit`), Charles River TMA / EZRide (Passio
 - `worker/`: the Cloudflare Worker (`worker/src/index.ts`) that fetches and caches upstream data.
 - `.github/workflows/deploy.yml`: builds and deploys to GitHub Pages on every push to `main`.
 
+Inside `src/`, data flows top to bottom through these folders. Each test file sits beside the file it tests.
+
+| Path | What it holds |
+| --- | --- |
+| `main.ts`, `App.svelte`, `app.css` | Startup, page layout and the theme tokens (colors, fonts). |
+| `config.ts` | Settings, URL parameters and the list of feeds (`FEEDS`). |
+| `lib/types.ts` | Shared shapes: stops, routes, departures, stations, board panels. |
+| `lib/feeds/` | One folder per kind of source (`mbta/`, `gtfs/`, `gbfs/`). Each has an `adapter.ts` (what to find nearby and what to poll) beside the code that parses that source's format. `types.ts` defines the adapter contract and the feed config; `index.ts` maps each kind to its adapter. |
+| `lib/data/` | Getting data and keeping it current: `discovery.ts` finds nearby stops and walk times, `poller.svelte.ts` runs every feed's polls and holds the live state, `building.ts` looks up MIT buildings, `worker-client.ts` talks to the Worker, and `demo.svelte.ts` is the dev-only sample data. |
+| `lib/board/` | Turning that state into what the screen shows: `panels.ts` (the panel table), `build.ts` (rows and notes), `countdown.ts`, `health.ts` (live, delayed or unavailable) and `trim.ts` (fitting rows to the space). |
+| `lib/ui/` | The Svelte components, plus what only the screen needs: `format.ts` (badges, abbreviations, contrast), `palette.ts` (frame colors) and `rotation.svelte.ts` (cycling alerts). |
+| `lib/util/` | Generic helpers: `geo.ts` (distances) and `time.ts` (Boston service-day time). |
+| `test/fixtures/` | Recorded API responses used by the tests. |
+
 ## Configuration
 
 Settings live in `src/config.ts` (`defaultConfig`). The board can override some of them from the URL:
@@ -17,16 +31,16 @@ Settings live in `src/config.ts` (`defaultConfig`). The board can override some 
 | Parameter | Example | Meaning |
 | --- | --- | --- |
 | `lat`, `lon` | `?lat=42.3598&lon=-71.0961` | Location to measure walking from. Both are needed; invalid values are ignored. |
-| `name` | `?name=32` | Building number, shown large in the header. Clears the default place name. |
-| `place` | `?place=Stata%20Center` | Building name shown beside it. |
-| `palette` | `?palette=apricot` | SA+P frame color: `apricot`, `yellow`, `pink`, `blue`, `orange`, `green`, or `rotate` (default). |
+| `building` | `?building=32` | MIT building number, shown large in the header. Its location and name come from the MIT campus map (see [Another building](#another-building)); it also switches to the `mit` palette (see [Another building](#another-building)). |
+| `name` | `?name=Stata%20Center` | Building name shown beside the number. |
+| `palette` | `?palette=apricot` | Frame color: an SA+P color (`apricot`, `yellow`, `pink`, `blue`, `orange`, `green`), `rotate` through them daily (default), or `mit` (black with MIT red accents). |
 | `inset` | `?inset=3` | Margin, in % of the screen's shorter side (0-10), for TVs that crop the edges (overscan). Default 0. |
 
 Other `Config` fields are set in code only (`src/config.ts`):
 
-- `location`, `name`, `place`: default to W41, Metropolitan Warehouse, `{ lat: 42.35982, lon: -71.0961 }`. URL overrides apply, see above.
+- `location`, `building`, `name`: default to W41, Metropolitan Warehouse, `{ lat: 42.35982, lon: -71.0961 }`. URL overrides apply, see above.
 - `workerUrl`: from the `VITE_WORKER_URL` build variable (default `http://localhost:8787`).
-- `modes`: maximum walk per mode (`subway` 15 min, `bus` 7, `ezride` 6, `shuttle` 5, `bikes` 8 min, plus `maxStations: 4` for bikes).
+- `feeds`: the agencies on the board, each with its walk limit (MBTA subway 15 min and bus 7, MIT shuttles 5, EZRide 6, Bluebikes 8 with the nearest 4 docks). See [Adding a feed](#adding-a-feed).
 - `pin`, `hide`: stop or route IDs to pin or hide. `pin` only keeps a stop that is already inside the mode's straight-line candidate circle (`maxWalkMin` x 60 x 1.3 m); it cannot add a farther stop.
 - `walkSpeedMps` (1.3) and `walkDetourFactor` (1.3): used only for the straight-line walk estimate.
 
@@ -34,14 +48,15 @@ Other `Config` fields are set in code only (`src/config.ts`):
 
 - Each row shows the next departure you can still walk to in time, then up to two more. Trains or buses leaving sooner than the walk are left out, and the same vehicle reported twice within a minute (a repeated trip, a loop bus on back-to-back trips, or an MBTA "added" trip) is shown once.
 - Times in italics come from the schedule (live data for that service is missing). The rest are live predictions.
-- MBTA status messages ("Stopped 5 stops away") appear in burgundy under the destination.
+- MBTA status messages ("Stopped 5 stops away") appear in the accent color (SA+P burgundy, or MIT Red) under the destination.
+- Long names are shortened the way MBTA signs shorten them (Massachusetts → Mass, Avenue → Ave, Square → Sq, and → &; the list is in `src/lib/ui/format.ts`). A destination's "via …" part is set lighter, so when a row is cut it loses the route description, never the destination.
 - MIT shuttle rows lead with the route name ("Tech Shuttle to Kendall Square T"), since riders know shuttles by route. Routes Passio marks "out of service" are never shown.
 - When one agency's data isn't fully live, the panel title says which ("EZRide: data delayed"), so live rows from the other agency in the same panel aren't called into question.
-- All EZRide routes are labelled `EZ` in the agency color (`EZRIDE_COLOR` in `src/lib/display.ts`), with the trip's final stop as the destination.
+- All EZRide routes are labelled `EZ` in the agency color (the feed's `badge` in `src/config.ts`), with the trip's final stop as the destination.
 
 ### Look
 
-The board follows the MIT School of Architecture and Planning identity as used on [sap.mit.edu](https://sap.mit.edu): departures in black on light gray, inside an L-shaped frame (header band and right edge) in one SA+P color. The rails between panels use the dark color SA+P pairs with it (burgundy, olive, or teal), since the light frame colors are too pale to separate panels on gray. Like the site, where each page has its own color, the frame color changes every day at the 04:00 reload. Pin one with `palette` (`apricot` is the color of the site's Met Warehouse page). Colors are in `src/lib/palette.ts`; the rest of the styling is in `src/app.css`.
+The board follows the MIT School of Architecture and Planning identity as used on [sap.mit.edu](https://sap.mit.edu): departures in black on light gray, inside an L-shaped frame (header band and right edge) in one SA+P color. The rails between panels use the dark color SA+P pairs with it (burgundy, olive, or teal), since the light frame colors are too pale to separate panels on gray. Like the site, where each page has its own color, the frame color changes every day at the 04:00 reload. Pin one with `palette` (`apricot` is the color of the site's Met Warehouse page). The `mit` palette follows MIT's identity ([brand.mit.edu/color](https://brand.mit.edu/color)) instead: a black frame and rails, the building number in MIT Bright Red, and MIT Red for status text and the alert band. Colors are in `src/lib/ui/palette.ts`; the rest of the styling is in `src/app.css`.
 
 #### Checking the design
 
@@ -53,11 +68,44 @@ The mouse pointer hides after 3 seconds without movement, so it stays out of the
 
 SA+P's own typefaces aren't available to license here, so the board uses the closest faces on Adobe Fonts when a kit is configured, and Helvetica/Arial and Georgia otherwise:
 
-1. At [fonts.adobe.com](https://fonts.adobe.com), create a **web project** with **Neue Haas Grotesk Display** (titles), **Neue Haas Unica** (departures), and **Freight Text Pro** (building name). Use the Regular and Medium weights of the Grotesk, Regular/Italic/Bold of Unica, and Regular of Freight Text.
+1. At [fonts.adobe.com](https://fonts.adobe.com), create a **web project** with these styles (the board uses no others):
+   - **Neue Haas Grotesk Display**: 55 Roman and 65 Medium. Medium is the building number, panel titles and clock; Roman is the building name on MIT boards. (Adobe serves these at CSS weights 500 and 600, which `--display-medium` in `src/app.css` accounts for.)
+   - **Neue Haas Unica** (SA+P departures): Regular, Italic, Bold, Bold Italic (not Heavy, which Adobe also serves at weight 700). Italics mark scheduled times; the next time is bold.
+   - **Freight Text Pro** (SA+P building name, messages, legend): Book and Book Italic.
+   - **Neue Haas Grotesk Text** (MIT departures, messages, legend): 55 Roman, 56 Italic, 75 Bold, 76 Bold Italic. MIT's brand ([brand.mit.edu](https://brand.mit.edu/typography)) sets everything in Neue Haas Grotesk, Display for large type and Text for small, with Arial as the fallback.
 2. Add the domains the board is served from: `localhost`, `dtemkin1.github.io`, and `web.mit.edu`.
 3. Put the project ID in `VITE_ADOBE_FONTS_KIT`: in `.env.local` for local builds, and as the repository variable `ADOBE_FONTS_KIT` for the GitHub Pages deploy.
 
-The kit's CSS is fetched from `use.typekit.net` when the page loads. If it can't be reached, the fallback fonts are used. The stacks are in `src/app.css`; if Adobe names a family differently in your kit, change the name there.
+The typefaces follow the palette: the SA+P colors use the SA+P set above, and `mit` uses MIT's (`:root[data-brand='mit']` in `src/app.css`). A family missing from the kit falls back to Helvetica/Arial. The kit's CSS is fetched from `use.typekit.net` when the page loads. If it can't be reached, the fallback fonts are used. The stacks are in `src/app.css`; if Adobe names a family differently in your kit, change the name there.
+
+### Adding a feed
+
+Every agency is one entry in `FEEDS` in `src/config.ts`. The board, the panel notes and the polling all read that list, so a new feed of a kind the board already supports needs no other app code:
+
+- **`gtfs`**: any GTFS static zip, with optional GTFS-RT in JSON form (Passio serves this; protobuf-only feeds aren't supported yet). Set `mode` to the panel it belongs in (`bus` or `shuttle`), `walkMin`, a fallback route `color`, and optionally `realtime`, `badge` (one label for every route), `named` (rows lead with the route name) and `headsign: 'last-stop'` (when `trip_headsign` isn't a destination). Without `realtime`, the feed shows its schedule in italics with no "live data unavailable" note. The Worker proxies the zip, so also add its URL to `GTFS_STATIC` in `worker/src/index.ts` under the same `id`, and deploy the Worker again.
+- **`gbfs`**: any GBFS system with docks, from its `gbfs.json` autodiscovery URL. `unit` sets the words ("bike", "e-bike").
+- **`mbta`**: the MBTA V3 API (one entry only).
+
+For example, a Passio shuttle with live data is:
+
+```ts
+{
+  kind: 'gtfs', id: 'myshuttle', name: 'My Shuttle', mode: 'shuttle', walkMin: 5,
+  realtime: passioRealtime('<passio agency>'), color: '#5F6368', named: true,
+},
+```
+
+with `myshuttle: passio('<passio agency>')` in the Worker's `GTFS_STATIC`. If it shares the Shuttles panel with the MIT shuttles, the panel's title becomes "Shuttles" and each note names its agency.
+
+A different kind of source (a car-share API, say) needs an adapter: a folder in `src/lib/feeds/` (like `gbfs/`: an `adapter.ts` beside the parsing code) whose adapter implements `Adapter` from `src/lib/feeds/types.ts` (what it finds near the board, and what it polls), registered in `src/lib/feeds/index.ts`, plus its config type. Stations (`Station` in `src/lib/types.ts`) already carry their own `unit`, so a lot of cars renders the same way as a Bluebikes dock. Panels (title, height share, column, row layout) are in `src/lib/board/panels.ts`; a new kind of vehicle that needs its own panel goes there and in `Mode`.
+
+### Another building
+
+For any MIT building, `?building=32` is enough. At startup the board looks the number up on MIT's campus map ([whereis.mit.edu](https://whereis.mit.edu)), through the Worker's `/building/{number}` route, which caches the answer for 30 days. That gives the walking origin and the building's name for the header ("Ray and Maria Stata Center"); buildings the map has no name for show only the number. `&name=` overrides the name, and `&lat=...&lon=...` sets the location yourself (no lookup), for a spot the map doesn't have. A number the map doesn't know shows a message saying so instead of departures.
+
+Since SA+P's colors belong to SA+P, another `building` switches to the `mit` palette: MIT's black and red, and its typeface, Neue Haas Grotesk (see Fonts); add `&palette=` to choose otherwise, for example for an SA+P space in another building.
+
+The default board (W41) keeps its location in `src/config.ts`, so it needs no lookup to start.
 
 ### Walking times
 
@@ -139,4 +187,4 @@ Then add that origin (for example `https://<athena-origin>`) to `ALLOWED_ORIGINS
 - Open the board in a browser's full-screen or kiosk mode (for example, Chrome with `--kiosk`, or press F11).
 - Disable screen sleep and screensaver, both in the OS power settings and in the browser.
 - The page needs no interaction: it starts on load and keeps itself up to date.
-- To point a kiosk at another place, add `?lat=...&lon=...&name=...&place=...` to the URL.
+- To point a kiosk at another place, add `?building=...` to the URL (or `?lat=...&lon=...&building=...&name=...` for a place the campus map lacks).

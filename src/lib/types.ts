@@ -1,6 +1,8 @@
-export type Mode = 'subway' | 'bus' | 'ezride' | 'shuttle' | 'bikes';
-export type Source = 'mbta' | 'mit' | 'ezride' | 'bluebikes';
-export type PanelId = 'subway' | 'bus' | 'shuttle' | 'bikes'; // bus panel holds mode bus + ezride
+/** Each mode is one board panel; a feed's stops and stations say which panel they appear in. */
+export type Mode = 'subway' | 'bus' | 'shuttle' | 'bikes';
+export type PanelId = Mode;
+/** A feed id from `config.feeds` ("mbta", "mit", ...). */
+export type Source = string;
 export interface LatLon { lat: number; lon: number }
 
 export interface Stop {
@@ -12,11 +14,13 @@ export interface Stop {
 export interface RouteInfo {
   id: string; source: Source; mode: Mode;
   shortName: string; longName: string; color: string; textColor: string; // '#RRGGBB'
+  badge?: string;          // fixed badge text, e.g. "EZ" for every EZRide route
+  named?: boolean;         // riders know it by name: rows read "Tech Shuttle to Kendall"
 }
 export interface Departure {
   source: Source; mode: Mode; routeId: string;
   stopId: string;          // platform-level id from the feed; mapped to Stop via platformIds
-  directionKey: string;    // MBTA: `${routeId}:${direction_id}`; Passio: `${routeId}:${headsign}`
+  directionKey: string;    // MBTA: `${routeId}:${direction_id}`; GTFS: `${routeId}:${headsign}`
   headsign: string;
   departureTime: number;   // epoch ms
   arrivalTime?: number;    // epoch ms
@@ -26,10 +30,17 @@ export interface Departure {
   tripId?: string;
   vehicleId?: string;      // live only; one vehicle can be predicted on two trips back to back
 }
-export interface Alert { id: string; source: Source; header: string; routeIds: string[]; stopIds: string[] }
-export interface BikeStation {
-  id: string; name: string; lat: number; lon: number; walkSec: number;
-  bikes?: number; ebikes?: number; docks?: number; renting?: boolean;
+export interface Alert {
+  id: string; source: Source; header: string; routeIds: string[]; stopIds: string[];
+  agencyWide?: boolean;    // names no route: shown whenever the feed has a stop on the board
+}
+/** What a station's count is of: "bike" / "e-bike", or "car". */
+export interface Unit { one: string; electric?: string }
+/** A dock or lot with vehicles to pick up (Bluebikes, car share). */
+export interface Station {
+  id: string; source: Source; mode: Mode; unit: Unit;
+  name: string; lat: number; lon: number; walkSec: number;
+  available?: number; electric?: number; docks?: number; open?: boolean; // undefined until status arrives
 }
 export type PanelStatus = 'ok' | 'delayed' | 'schedule-fallback' | 'unavailable';
 export interface TimeCell {
@@ -44,5 +55,6 @@ export interface BoardRow {
 export interface BoardGroup { header?: { name: string; walkMin: number; walkEstimated: boolean }; rows: BoardRow[] }
 export interface BoardPanel {
   id: PanelId; title: string; status: PanelStatus; groups: BoardGroup[];
-  notes: string[];  // what isn't fully live, per agency ("EZRide: data delayed")
+  notes: string[];        // what isn't fully live, per agency ("EZRide: data delayed")
+  stations?: Station[];   // station panels list these instead of rows
 }

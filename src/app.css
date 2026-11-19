@@ -1,5 +1,5 @@
 /* SA+P identity (sap.mit.edu inner pages): black on light gray inside an L-frame in one SA+P color. */
-/* Type stacks: closest Adobe Fonts (kit optional), then SA+P's own names, then Helvetica/Arial and Georgia. */
+/* SA+P type stacks: closest Adobe Fonts (kit optional), then SA+P's own names, then Helvetica/Arial and Georgia. */
 :root {
   --frame: #ffc486;
   --on-frame: #000000;
@@ -10,11 +10,15 @@
   --emphasis: #6b0033;  /* SA+P burgundy: status and warnings */
   --band: #6b0033;      /* alert band */
   --on-band: #ffffff;   /* 12.6:1 */
+  --band-icon: #e0fd65; /* SA+P lime: reads on the burgundy band whatever today's frame color is */
   --rule: #d2d2d2;
   --rail-w: 0.6vmin;
+  /* Accent: building name, messages and the legend. */
   --font-sans: 'neue-haas-unica', 'System', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --font-display: 'neue-haas-grotesk-display', 'System', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  --font-serif: 'freight-text-pro', 'Rhymes Text', 'Rhymes', Georgia, 'Times New Roman', serif;
+  --font-accent: 'freight-text-pro', 'Rhymes Text', 'Rhymes', Georgia, 'Times New Roman', serif;
+  /* Adobe serves Neue Haas Grotesk Display 55 Roman at 500 and 65 Medium at 600. */
+  --display-medium: 600;
   color-scheme: light;
   font-family: var(--font-sans);
   /* Scales with the screen for the TV; the rem part makes browser zoom enlarge it too. */
@@ -23,6 +27,19 @@
   color: var(--text);
   background: var(--frame);
   font-variant-numeric: tabular-nums;
+}
+
+/* MIT identity (brand.mit.edu): Neue Haas Grotesk (Display above 20 px, Text below, Arial fallback); black, white, red accents. */
+:root[data-brand='mit'] {
+  --font-sans: 'neue-haas-grotesk-text', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-display: 'neue-haas-grotesk-display', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-accent: var(--font-sans);
+  --font-name: var(--font-display);
+  /* MIT red accents on the black frame, in place of SA+P's burgundy and lime. */
+  --building: #ff1423;  /* MIT Bright Red, 5.4:1 on black */
+  --emphasis: #750014;  /* MIT Red, 10.9:1 on the page */
+  --band: #750014;      /* white on it 11.9:1 */
+  --band-icon: #ffffff;
 }
 
 *,

@@ -1,14 +1,15 @@
-import { isPaletteName, type PaletteChoice } from './lib/palette';
-import type { LatLon, Mode } from './lib/types';
+import { isPaletteName, type PaletteChoice } from './lib/ui/palette';
+import type { FeedConfig } from './lib/feeds/types';
+import type { LatLon } from './lib/types';
 
-export interface ModeLimit { maxWalkMin: number; maxStations?: number }
 export interface Config {
-  name: string;   // building number, shown in the header block ("W41")
-  place: string;  // building name beside it ("Metropolitan Warehouse"); may be empty
-  palette: PaletteChoice; // SA+P frame color, or 'rotate' for a new one each day
+  building: string; // building number, shown large in the header ("W41")
+  name: string;     // building name beside it ("Metropolitan Warehouse"); may be empty
+  palette: PaletteChoice; // frame color, or 'rotate' for a new SA+P one each day
   inset: number;  // margin for TV overscan, % of the screen's shorter side (0-10)
   location: LatLon; workerUrl: string;
-  modes: Record<Mode, ModeLimit>;
+  locate: boolean; // look `building` up on the MIT campus map for `location` (and `name`, when empty)
+  feeds: FeedConfig[];             // board order within a panel follows this order
   pin: string[]; hide: string[];   // stop ids or route ids
   walkSpeedMps: number; walkDetourFactor: number;
 }
@@ -18,20 +19,42 @@ export function pickWorkerUrl(raw: string | undefined): string {
   return raw || 'http://localhost:8787';
 }
 
+const passioRealtime = (agency: string) => ({
+  tripUpdates: `https://passio3.com/${agency}/passioTransit/gtfs/realtime/tripUpdates.json`,
+  serviceAlerts: `https://passio3.com/${agency}/passioTransit/gtfs/realtime/serviceAlerts.json`,
+});
+
+// Walk limits are how far riders will go for each: farther for the T than for a shuttle.
+// A GTFS feed's static zip comes through the Worker, so a new one also needs an entry there.
+export const FEEDS: FeedConfig[] = [
+  // 7 min bus: brings in the 70 at Mass Ave @ Sidney St (6.7 min walk) beside the 1 and the 85.
+  { kind: 'mbta', id: 'mbta', name: 'MBTA', walkMin: { subway: 15, bus: 7 } },
+  {
+    kind: 'gtfs', id: 'mit', name: 'MIT shuttles', mode: 'shuttle', walkMin: 5,
+    realtime: passioRealtime('mit'), color: '#750014', named: true,
+  },
+  {
+    kind: 'gtfs', id: 'ezride', name: 'EZRide', mode: 'bus', walkMin: 6,
+    realtime: passioRealtime('charlesriver'), color: '#1F77B4',
+    badge: { text: 'EZ', color: '#1F77B4', textColor: '#FFFFFF' },
+    headsign: 'last-stop', // EZRide's trip_headsign names the service ("Evening Service")
+  },
+  // 8 min: the nearest docks from W41 are 3.7, 4.1, 5.9 and 7.5 min away on foot.
+  {
+    kind: 'gbfs', id: 'bluebikes', name: 'Bluebikes', mode: 'bikes', walkMin: 8, maxStations: 4,
+    url: 'https://gbfs.bluebikes.com/gbfs/gbfs.json', unit: { one: 'bike', electric: 'e-bike' },
+  },
+];
+
 export const defaultConfig: Config = {
-  name: 'W41',
-  place: 'Metropolitan Warehouse',
+  building: 'W41',
+  name: 'Metropolitan Warehouse',
   palette: 'rotate',
   inset: 0,
   location: { lat: 42.35982, lon: -71.0961 },
   workerUrl: pickWorkerUrl(import.meta.env.VITE_WORKER_URL),
-  modes: {
-    subway: { maxWalkMin: 15 },
-    bus: { maxWalkMin: 7 },
-    ezride: { maxWalkMin: 6 },
-    shuttle: { maxWalkMin: 5 },
-    bikes: { maxWalkMin: 8, maxStations: 4 },
-  },
+  locate: false,
+  feeds: FEEDS,
   pin: [],
   hide: [],
   walkSpeedMps: 1.3,
@@ -42,14 +65,16 @@ export function resolveConfig(search: string, base: Config = defaultConfig): Con
   const params = new URLSearchParams(search);
   const config: Config = { ...base };
 
-  // A different building shouldn't keep W41's place name, so ?name= without ?place= clears it.
-  const name = params.get('name');
-  if (name) {
-    config.name = name;
-    config.place = '';
+  // Another building drops W41's name, location and SA+P colors.
+  const building = params.get('building')?.trim();
+  if (building && building !== 'W41') {
+    config.building = building;
+    config.name = '';
+    config.palette = 'mit';
+    config.locate = true;
   }
-  const place = params.get('place');
-  if (place) config.place = place;
+  const name = params.get('name');
+  if (name) config.name = name;
 
   const palette = params.get('palette');
   if (palette && (palette === 'rotate' || isPaletteName(palette))) config.palette = palette;
@@ -62,7 +87,10 @@ export function resolveConfig(search: string, base: Config = defaultConfig): Con
   if (latRaw !== null && lonRaw !== null && latRaw.trim() !== '' && lonRaw.trim() !== '') {
     const lat = Number(latRaw);
     const lon = Number(lonRaw);
-    if (Number.isFinite(lat) && Number.isFinite(lon)) config.location = { lat, lon };
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      config.location = { lat, lon };
+      config.locate = false;
+    }
   }
   return config;
 }

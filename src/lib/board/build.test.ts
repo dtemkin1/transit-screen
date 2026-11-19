@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { buildBoard, type BoardInput } from './build';
-import type { Discovered } from '../discovery';
-import type { PassioStatic } from '../gtfs/passio-static';
-import type { Alert, BikeStation, BoardPanel, Departure, Mode, RouteInfo, Source, Stop } from '../types';
+import type { Discovered } from '../data/discovery';
+import { FEEDS } from '../../config';
+import type { Alert, BoardPanel, Departure, Mode, RouteInfo, Source, Station, Stop } from '../types';
 
 const NOW = 1_800_000_000_000;
 const MIN = 60_000;
@@ -19,7 +19,7 @@ const STOPS: Stop[] = [
   stop('mbta', 'subway', 'place-knncl', 600, ['70071', '70072']),
   stop('mbta', 'bus', '1001', 120),
   stop('mbta', 'bus', '1002', 200),
-  stop('ezride', 'ezride', 'e1', 300),
+  stop('ezride', 'bus', 'e1', 300),
   stop('mit', 'shuttle', 'm1', 100),
   stop('mit', 'shuttle', 'm2', 300),
 ];
@@ -27,14 +27,16 @@ const ROUTES = [
   route('mbta', 'subway', 'Red', 'Red Line'),
   route('mbta', 'bus', '1'),
   route('mbta', 'bus', '64'),
-  route('ezride', 'ezride', 'er'),
+  route('ezride', 'bus', 'er'),
   route('mit', 'shuttle', 'tech'),
 ];
-const BIKE: BikeStation = { id: 'b1', name: 'Bikes', lat: 0, lon: 0, walkSec: 60 };
+const BIKE: Station = {
+  id: 'b1', source: 'bluebikes', mode: 'bikes', unit: { one: 'bike' }, name: 'Bikes', lat: 0, lon: 0, walkSec: 60,
+};
 
-function discovered(bikes: BikeStation[] = []): Discovered {
+function discovered(stations: Station[] = []): Discovered {
   return {
-    stops: STOPS, bikes, passio: {},
+    stops: STOPS, stations, serving: new Map(), feeds: {},
     routes: new Map(ROUTES.map((r) => [`${r.source}:${r.id}`, r])),
   };
 }
@@ -57,8 +59,8 @@ const empty = (): Record<Source, Departure[]> => ({ mbta: [], mit: [], ezride: [
 
 function input(over: Partial<BoardInput> = {}): BoardInput {
   return {
-    discovered: discovered(), nowMs: NOW,
-    live: empty(), scheduled: empty(),
+    discovered: discovered(), nowMs: NOW, feeds: FEEDS,
+    live: empty(), scheduled: empty(), stations: (over.discovered ?? discovered()).stations,
     health: { mbta: { lastOk: NOW }, mit: { lastOk: NOW }, ezride: { lastOk: NOW }, bluebikes: { lastOk: NOW } },
     alerts: [], hide: [], extraRoutes: [],
     ...over,
@@ -337,22 +339,17 @@ describe('buildBoard: bus and shuttle', () => {
     expect(panel(panels, 'bus')).toBeUndefined();
   });
 
-  it('Passio static stop service anchors the row; a trip\'s last stop does not count', () => {
-    const passio = (order: string[]): PassioStatic => ({
-      source: 'mit', mode: 'shuttle', stops: new Map(), routes: new Map(),
-      trips: new Map([['t1', { routeId: 'tech', serviceId: 's', headsign: 'Kendall' }]]),
-      stopTimes: new Map([['t1', order.map((stopId, i) => ({ stopId, seq: i + 1, dep: '08:00:00' }))]]),
-      calendar: new Map(), calendarDates: [],
-    });
+  it('the static schedule\'s stops anchor the row, even with no departure there now', () => {
+    const serving = (ids: string[]) => new Map([['mit:tech:Kendall', new Set(ids.map((id) => `mit:${id}`))]]);
     const live = withLive([], {
       mit: [dep('mit', 'shuttle', 'tech', 'm2')({ min: 10, dir: 'Kendall', headsign: 'Kendall' })],
     });
     // m1 (closer) is served by the trip: the row belongs to m1, which has no times.
-    const served = buildBoard(input({ live, discovered: { ...discovered(), passio: { mit: passio(['m1', 'm2']) } } }));
+    const served = buildBoard(input({ live, discovered: { ...discovered(), serving: serving(['m1', 'm2']) } }));
     expect(panel(served.panels, 'shuttle')).toBeUndefined();
 
-    // m1 is only the trip's last stop (drop-off): the row stays at m2.
-    const dropOff = buildBoard(input({ live, discovered: { ...discovered(), passio: { mit: passio(['m2', 'm1']) } } }));
+    // Only m2 boards this direction (m1 is its drop-off): the row stays at m2.
+    const dropOff = buildBoard(input({ live, discovered: { ...discovered(), serving: serving(['m2']) } }));
     expect(panel(dropOff.panels, 'shuttle')!.groups[0].rows.map((r) => r.stopName)).toEqual(['Stop m2']);
   });
 
@@ -364,7 +361,7 @@ describe('buildBoard: bus and shuttle', () => {
           bus1('1001', { min: 12 }),
           dep('mbta', 'bus', '64', '1002')({ min: 7, headsign: 'Oak Sq' }),
         ],
-        { ezride: [dep('ezride', 'ezride', 'er', 'e1')({ min: 6, headsign: 'North Station' })] },
+        { ezride: [dep('ezride', 'bus', 'er', 'e1')({ min: 6, headsign: 'North Station' })] },
       ),
     }));
     const rows = panel(panels, 'bus')!.groups[0].rows;
@@ -384,7 +381,7 @@ describe('buildBoard: bus and shuttle', () => {
     const { panels } = buildBoard(input({
       health: { ...input().health, ezride: { lastOk: NOW - 11 * MIN } },
       live: withLive([bus1('1001', { min: 9 })]),
-      scheduled: { ...input().scheduled, ezride: [dep('ezride', 'ezride', 'er', 'e1')({ min: 8, live: false })] },
+      scheduled: { ...input().scheduled, ezride: [dep('ezride', 'bus', 'er', 'e1')({ min: 8, live: false })] },
     }));
     expect(panel(panels, 'bus')!.notes).toEqual(['EZRide: live data unavailable, showing schedule']);
   });
@@ -457,13 +454,15 @@ describe('buildBoard: bikes and order', () => {
     });
     const { panels } = buildBoard(input({ live, discovered: discovered([BIKE]) }));
     expect(panels.map((p) => p.id)).toEqual(['subway', 'bus', 'shuttle', 'bikes']);
-    expect(panel(panels, 'bikes')).toEqual({ id: 'bikes', title: 'Bluebikes', status: 'ok', groups: [], notes: [] });
+    expect(panel(panels, 'bikes')).toEqual({ id: 'bikes', title: 'Bluebikes', status: 'ok', groups: [], notes: [], stations: [BIKE] });
 
     const stale = buildBoard(input({
       discovered: discovered([BIKE]),
       health: { ...input().health, bluebikes: { lastOk: NOW - 11 * MIN } },
     }));
-    expect(stale.panels).toEqual([{ id: 'bikes', title: 'Bluebikes', status: 'unavailable', groups: [], notes: ['Live data unavailable'] }]);
+    expect(stale.panels).toEqual([
+      { id: 'bikes', title: 'Bluebikes', status: 'unavailable', groups: [], notes: ['Live data unavailable'], stations: [BIKE] },
+    ]);
 
     expect(buildBoard(input()).panels).toEqual([]);
   });
@@ -501,8 +500,9 @@ describe('buildBoard: alerts', () => {
     expect(buildBoard(input({ live, alerts })).alerts).toEqual([]);
   });
 
-  it('agency-wide Passio alerts shown when that agency is on the board', () => {
-    const alerts = [alert('mit-wide', 'mit', []), alert('ez-wide', 'ezride', [])];
+  it('agency-wide alerts shown when that agency is on the board', () => {
+    const wide = (id: string, source: Source): Alert => ({ ...alert(id, source, []), agencyWide: true });
+    const alerts = [wide('mit-wide', 'mit'), wide('ez-wide', 'ezride'), alert('mbta-no-route', 'mbta', [])];
     const live = withLive([], { mit: [dep('mit', 'shuttle', 'tech', 'm1')({ min: 4 })] });
     expect(buildBoard(input({ live, alerts })).alerts.map((a) => a.id)).toEqual(['mit-wide']);
   });

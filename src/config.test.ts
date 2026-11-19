@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { resolveConfig, defaultConfig, pickWorkerUrl } from './config';
+import { walkLimits } from './lib/feeds';
 
 describe('pickWorkerUrl', () => {
   it('uses the configured URL when set', () => {
@@ -14,20 +15,22 @@ describe('pickWorkerUrl', () => {
 describe('resolveConfig', () => {
   it('defaults to W41', () => {
     const c = resolveConfig('');
-    expect(c.name).toBe('W41');
-    expect(c.place).toBe('Metropolitan Warehouse');
+    expect(c.building).toBe('W41');
+    expect(c.name).toBe('Metropolitan Warehouse');
     expect(c.location).toEqual({ lat: 42.35982, lon: -71.0961 });
-    expect(c.modes.subway.maxWalkMin).toBe(15);
-    // 7 min: brings in the 70 at Mass Ave @ Sidney St (6.7 min walk) beside the 1 and the 85.
-    expect(c.modes.bus.maxWalkMin).toBe(7);
-    // 8 min: the nearest docks from W41 are 3.7, 4.1, 5.9 and 7.5 min away on foot.
-    expect(c.modes.bikes).toEqual({ maxWalkMin: 8, maxStations: 4 });
+    expect(c.feeds.map((f) => [f.id, walkLimits(f)])).toEqual([
+      ['mbta', { subway: 15, bus: 7 }],
+      ['mit', { shuttle: 5 }],
+      ['ezride', { bus: 6 }],
+      ['bluebikes', { bikes: 8 }],
+    ]);
+    expect(c.feeds.find((f) => f.id === 'bluebikes')).toMatchObject({ maxStations: 4 });
   });
   it('applies URL overrides', () => {
-    const c = resolveConfig('?lat=42.36&lon=-71.09&name=32&place=Stata%20Center');
+    const c = resolveConfig('?lat=42.36&lon=-71.09&building=32&name=Stata%20Center');
     expect(c.location).toEqual({ lat: 42.36, lon: -71.09 });
-    expect(c.name).toBe('32');
-    expect(c.place).toBe('Stata Center');
+    expect(c.building).toBe('32');
+    expect(c.name).toBe('Stata Center');
   });
   it('palette rotates daily by default and can be pinned from the URL', () => {
     expect(resolveConfig('').palette).toBe('rotate');
@@ -42,8 +45,17 @@ describe('resolveConfig', () => {
     expect(resolveConfig('?inset=-2').inset).toBe(0);
     expect(resolveConfig('?inset=abc').inset).toBe(0);
   });
-  it('a new name without a place clears the default place', () => {
-    expect(resolveConfig('?name=32').place).toBe('');
+  it('another building drops the W41 name and SA+P colors for MIT red, unless given', () => {
+    expect(resolveConfig('?building=32').name).toBe('');
+    expect(resolveConfig('?building=32').palette).toBe('mit');
+    expect(resolveConfig('?building=7&palette=pink').palette).toBe('pink');
+  });
+  it('another building is looked up on the campus map, unless lat and lon are given', () => {
+    expect(resolveConfig('').locate).toBe(false);
+    expect(resolveConfig('?building=32').locate).toBe(true);
+    expect(resolveConfig('?building=32&lat=42.36&lon=-71.09').locate).toBe(false);
+    expect(resolveConfig('?building=32&lat=abc&lon=-71').locate).toBe(true);
+    expect(resolveConfig('?building=%20%20').locate).toBe(false);
   });
   it('ignores non-numeric lat/lon', () => {
     expect(resolveConfig('?lat=abc&lon=-71').location).toEqual(defaultConfig.location);

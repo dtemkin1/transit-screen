@@ -1,18 +1,18 @@
 <script lang="ts">
   import { resolveConfig } from './config';
   import { buildBoard } from './lib/board/build';
-  import AlertStrip from './lib/components/AlertStrip.svelte';
-  import BikesPanel from './lib/components/BikesPanel.svelte';
-  import Header from './lib/components/Header.svelte';
-  import Panel from './lib/components/Panel.svelte';
-  import { createDemoPoller } from './lib/demo.svelte';
-  import { paletteFor } from './lib/palette';
-  import { createPoller } from './lib/poller.svelte';
-  import { serviceDate } from './lib/time';
-  import type { PanelId } from './lib/types';
+  import { PANELS } from './lib/board/panels';
+  import AlertStrip from './lib/ui/AlertStrip.svelte';
+  import Header from './lib/ui/Header.svelte';
+  import Panel from './lib/ui/Panel.svelte';
+  import { createDemoPoller } from './lib/data/demo.svelte';
+  import { paletteFor } from './lib/ui/palette';
+  import { createPoller } from './lib/data/poller.svelte';
+  import { serviceDate } from './lib/util/time';
+  import type { BoardPanel } from './lib/types';
 
   const cfg = resolveConfig(location.search);
-  // `?demo` on the dev server shows sample data covering every state (src/lib/demo.svelte.ts).
+  // `?demo` on the dev server shows sample data covering every state (src/lib/data/demo.svelte.ts).
   const demo = import.meta.env.DEV ? new URLSearchParams(location.search).get('demo') : null;
   const poller = demo !== null ? createDemoPoller(demo) : createPoller(cfg);
   const data = poller.state;
@@ -24,6 +24,7 @@
   root.style.setProperty('--on-frame', palette.onFrame);
   root.style.setProperty('--rail', palette.rail);
   root.style.setProperty('--inset', `${cfg.inset}vmin`);
+  root.dataset.brand = palette.brand;
 
   $effect(() => {
     poller.start();
@@ -63,36 +64,39 @@
       ? buildBoard({
           discovered: data.discovered,
           nowMs: data.now,
+          feeds: cfg.feeds,
           live: data.live,
           scheduled: data.scheduled,
           health: data.health,
           alerts: data.alerts,
+          stations: data.stations,
           hide: cfg.hide,
           extraRoutes: data.extraRoutes,
         })
       : undefined,
   );
 
-  // Landscape: Red Line over Bluebikes beside Buses over MIT shuttles. Portrait: one column.
-  const LANDSCAPE: PanelId[][] = [['subway', 'bikes'], ['bus', 'shuttle']];
-  const PORTRAIT: PanelId[][] = [['subway', 'bus', 'shuttle', 'bikes']];
-
+  // Landscape: each panel in its PANELS column. Portrait: one column in PANELS order.
   const columns = $derived.by(() => {
-    const byId = new Map(board?.panels.map((p) => [p.id, p]) ?? []);
-    return (landscape ? LANDSCAPE : PORTRAIT)
-      .map((ids) => ids.flatMap((id) => byId.get(id) ?? []))
-      .filter((col) => col.length > 0);
+    const cols = new Map<number, { panel: BoardPanel; share: number }[]>();
+    for (const def of PANELS) {
+      const panel = board?.panels.find((p) => p.id === def.id);
+      if (!panel) continue;
+      const c = landscape ? def.column : 0;
+      cols.set(c, [...(cols.get(c) ?? []), { panel, share: def.share }]);
+    }
+    return [...cols.entries()].sort(([a], [b]) => a - b).map(([, col]) => col);
   });
-
-  // Fixed shares, so panel borders stay put as departures come and go.
-  const SHARE: Record<PanelId, number> = { subway: 3, bus: 2, shuttle: 1.6, bikes: 1.6 };
 </script>
 
 <div class="screen">
-  <Header name={cfg.name} place={cfg.place} now={data.now} tag={demo !== null ? 'Sample data' : undefined} />
+  <Header building={cfg.building} name={cfg.name || data.name || ''} now={data.now} tag={demo !== null ? 'Sample data' : undefined} />
 
   <main>
-    {#if !board && data.discoveryFailures > 0}
+    {#if !board && data.unknownBuilding}
+      <!-- Only whoever set up the screen sees this, so it says how to fix it. -->
+      <p class="message">Building {cfg.building} isn't on the MIT campus map. Check the number, or add its lat and lon to the URL.</p>
+    {:else if !board && data.discoveryFailures > 0}
       <p class="message">Can't reach the transit data service. Trying again every minute.</p>
     {:else if !board}
       <p class="message">Finding nearby transit…</p>
@@ -101,17 +105,9 @@
     {:else}
       {#each columns as col, ci (ci)}
         <div class="column">
-          {#each col as panel (panel.id)}
-            <div class="slot" style:flex-grow={SHARE[panel.id]}>
-              {#if panel.id === 'bikes'}
-                <Panel {panel}>
-                  {#snippet children(maxRows)}
-                    <BikesPanel stations={data.bikes.slice(0, maxRows)} />
-                  {/snippet}
-                </Panel>
-              {:else}
-                <Panel {panel} />
-              {/if}
+          {#each col as { panel, share } (panel.id)}
+            <div class="slot" style:flex-grow={share}>
+              <Panel {panel} />
             </div>
           {/each}
         </div>
@@ -160,7 +156,7 @@
     padding: 0 2.2vmin;
     background: var(--page);
     text-align: center;
-    font-family: var(--font-serif);
+    font-family: var(--font-accent);
     font-size: 1.3em;
     color: var(--muted);
   }
@@ -169,7 +165,7 @@
     padding: 0.5vmin 2.2vmin 0.8vmin;
     background: var(--page);
     border-top: var(--rail-w) solid var(--rail);
-    font-family: var(--font-serif);
+    font-family: var(--font-accent);
     font-size: 0.75em;
     font-style: italic;
     color: var(--muted);

@@ -83,17 +83,50 @@ describe('worker', () => {
     expect(new Headers(calls[0].init?.headers).get('If-Modified-Since')).toBe('Tue, 17 Nov 2026 09:00:00 GMT')
   })
 
-  it('rejects unknown passio agency', async () => {
+  it('looks up a building on whereis, taking only the exact match, and caches it', async () => {
+    const hits = [
+      { bldgnum: 'E14', name: 'E14', lat_wgs84: 42.3604, long_wgs84: -71.0873 },
+      { bldgnum: '14', name: 'Hayden Library', lat_wgs84: 42.3591, long_wgs84: -71.0893 },
+    ]
+    const { calls, run } = setup(() => Response.json(hits))
+    const a = await run(new Request('https://w.test/building/14'))
+    expect(await a.json()).toEqual({ number: '14', name: 'Hayden Library', lat: 42.3591, lon: -71.0893 })
+    expect(a.headers.get('Cache-Control')).toBe(`public, max-age=${30 * 86400}`)
+    await run(new Request('https://w.test/building/14'))
+    expect(calls).toHaveLength(1)
+    expect(calls[0].url).toBe('https://whereis.mit.edu/search?type=query&output=json&q=14')
+
+    const e14 = await run(new Request('https://w.test/building/e14'))
+    expect(await e14.json()).toMatchObject({ number: 'E14', name: '' })
+  })
+
+  it('a building whereis does not know is a 404, and is not cached', async () => {
+    const { calls, run } = setup(() => Response.json([{ bldgnum: 'W41', name: 'Building W41', lat_wgs84: 1, long_wgs84: 2 }]))
+    expect((await run(new Request('https://w.test/building/W4'))).status).toBe(404)
+    expect((await run(new Request('https://w.test/building/W4'))).status).toBe(404)
+    expect(calls).toHaveLength(2)
+    expect(await (await run(new Request('https://w.test/building/W41'))).json()).toMatchObject({ name: '' })
+  })
+
+  it.each(['/building/', '/building/W41/x', '/building/..%2Fx', '/building/TOOLONGNAME'])(
+    '404s without fetching for %s', async (path) => {
+      const { calls, run } = setup(() => new Response('[]'))
+      expect((await run(new Request(`https://w.test${path}`))).status).toBe(404)
+      expect(calls).toHaveLength(0)
+    },
+  )
+
+  it('rejects a GTFS feed id not in the table', async () => {
     const { calls, run } = setup(() => new Response('x'))
-    const res = await run(new Request('https://w.test/passio/avcog/gtfs.zip'))
+    const res = await run(new Request('https://w.test/gtfs/avcog'))
     expect(res.status).toBe(404)
     expect(calls).toHaveLength(0)
   })
 
-  it('serves passio zip from cache on second call', async () => {
+  it('serves a GTFS zip from cache on second call', async () => {
     const { calls, run } = setup(() => new Response(new Uint8Array([80, 75]), { status: 200 }))
-    const a = await run(new Request('https://w.test/passio/mit/gtfs.zip'))
-    const b = await run(new Request('https://w.test/passio/mit/gtfs.zip'))
+    const a = await run(new Request('https://w.test/gtfs/mit'))
+    const b = await run(new Request('https://w.test/gtfs/mit'))
     expect(a.status).toBe(200)
     expect(b.status).toBe(200)
     expect(calls).toHaveLength(1)
@@ -148,9 +181,11 @@ describe('worker', () => {
     '/mbta/stops/../vehicles',
     '/mbta/stops%2F..%2Fvehicles',
     '/mbta/stops/extra',
-    '/passio/mit/../x',
-    '/passio/mit%2F..%2Fx/gtfs.zip',
-    '/passio/constructor/gtfs.zip',
+    '/gtfs/mit/../x',
+    '/gtfs/mit%2F..%2Fx',
+    '/gtfs/mit/extra',
+    '/gtfs/constructor',
+    '/passio/mit/gtfs.zip',
   ])('404s without fetching for %s', async (path) => {
     const { calls, run } = setup(() => new Response('x'))
     const res = await run(new Request(`https://w.test${path}`))
@@ -166,7 +201,7 @@ describe('worker', () => {
       ['/mbta/schedules', 300],
       ['/mbta/stops', 86400],
       ['/mbta/routes', 86400],
-      ['/passio/charlesriver/gtfs.zip', 21600],
+      ['/gtfs/ezride', 21600],
     ]
     for (const [path, ttl] of cases) {
       const res = await run(new Request(`https://w.test${path}`))

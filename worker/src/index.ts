@@ -21,8 +21,13 @@ const MBTA_TTL: Record<string, number> = {
   stops: 86400,
   routes: 86400,
 }
-const PASSIO_AGENCIES = new Set(['mit', 'charlesriver'])
-const PASSIO_TTL = 6 * 3600
+const passio = (agency: string) => `https://passio3.com/${agency}/passioTransit/gtfs/google_transit.zip`
+// Static GTFS zips, keyed by the board's feed id (config.ts FEEDS). Only these are proxied.
+const GTFS_STATIC: Record<string, string> = {
+  mit: passio('mit'),
+  ezride: passio('charlesriver'),
+}
+const GTFS_TTL = 6 * 3600
 const WALK_TTL = 24 * 3600
 const WALK_CHUNK = 50
 const WALK_MAX = 500
@@ -93,13 +98,47 @@ async function mbta(req: Request, env: Env, deps: Deps, name: string, search: st
   return cached(deps, key, produce, ttl)
 }
 
-async function passio(deps: Deps, agency: string): Promise<Response> {
-  const key = new Request(`https://cache.local/passio/${agency}/gtfs.zip`)
+async function gtfs(deps: Deps, id: string): Promise<Response> {
+  const key = new Request(`https://cache.local/gtfs/${id}`)
+  return cached(deps, key, () => deps.fetch(GTFS_STATIC[id]), GTFS_TTL)
+}
+
+// whereis.mit.edu (MIT's campus map) has every building but sends no CORS header.
+const WHEREIS = 'https://whereis.mit.edu/search?type=query&output=json&q='
+const BUILDING_ID = /^[A-Z0-9]{1,8}$/
+const BUILDING_TTL = 30 * 86400
+
+interface WhereisHit {
+  bldgnum?: string
+  name?: string
+  lat_wgs84?: number
+  long_wgs84?: number
+}
+
+async function building(deps: Deps, id: string): Promise<Response> {
+  const key = new Request(`https://cache.local/building/${id}`)
   return cached(
     deps,
     key,
-    () => deps.fetch(`https://passio3.com/${agency}/passioTransit/gtfs/google_transit.zip`),
-    PASSIO_TTL,
+    async () => {
+      const up = await deps.fetch(WHEREIS + encodeURIComponent(id))
+      if (!up.ok) return text(502, 'building upstream error')
+      let hits: unknown
+      try {
+        hits = await up.json()
+      } catch {
+        return text(502, 'building upstream malformed')
+      }
+      // A search for "4" also finds "W4" and "E14": only the exact building counts.
+      const hit = (Array.isArray(hits) ? (hits as WhereisHit[]) : []).find((h) => h.bldgnum?.toUpperCase() === id)
+      const lat = hit?.lat_wgs84
+      const lon = hit?.long_wgs84
+      if (!hit || typeof lat !== 'number' || typeof lon !== 'number') return text(404, 'no such building')
+      // whereis names unnamed buildings "Building W41" or just "E14".
+      const name = hit.name && hit.name !== id && hit.name !== `Building ${id}` ? hit.name : ''
+      return Response.json({ number: id, name, lat, lon })
+    },
+    BUILDING_TTL,
   )
 }
 
@@ -174,14 +213,10 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
 
   if (parts[0] === 'mbta' && parts.length === 2 && req.method === 'GET' && Object.hasOwn(MBTA_TTL, parts[1])) {
     res = await mbta(req, env, deps, parts[1], url.search)
-  } else if (
-    parts[0] === 'passio' &&
-    parts.length === 3 &&
-    parts[2] === 'gtfs.zip' &&
-    req.method === 'GET' &&
-    PASSIO_AGENCIES.has(parts[1])
-  ) {
-    res = await passio(deps, parts[1])
+  } else if (parts[0] === 'gtfs' && parts.length === 2 && req.method === 'GET' && Object.hasOwn(GTFS_STATIC, parts[1])) {
+    res = await gtfs(deps, parts[1])
+  } else if (parts[0] === 'building' && parts.length === 2 && req.method === 'GET' && BUILDING_ID.test(parts[1].toUpperCase())) {
+    res = await building(deps, parts[1].toUpperCase())
   } else if (parts[0] === 'walk' && parts.length === 1) {
     res = await walk(req, deps)
   } else {

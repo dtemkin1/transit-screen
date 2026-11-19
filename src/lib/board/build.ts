@@ -1,27 +1,21 @@
-import type { Discovered } from '../discovery';
+import type { Discovered } from '../data/discovery';
 import type {
-  Alert, BoardGroup, BoardPanel, BoardRow, Departure, Mode, PanelId, PanelStatus, RouteInfo, Source, Stop, TimeCell,
+  Alert, BoardGroup, BoardPanel, BoardRow, Departure, PanelStatus, RouteInfo, Source, Station, Stop, TimeCell,
 } from '../types';
-import type { PassioStatic } from '../gtfs/passio-static';
 import { countdownLabel } from './countdown';
 import { sourceStatus, worstStatus, type Health } from './health';
+import { PANELS, type PanelDef } from './panels';
 
 export interface BoardInput {
   discovered: Discovered; nowMs: number;
+  feeds: readonly { id: Source; name: string }[];
   live: Record<Source, Departure[]>; scheduled: Record<Source, Departure[]>;
   health: Record<Source, Health>; alerts: Alert[];
+  stations: Station[];       // discovered stations with their latest counts
   hide: string[];            // route ids, bare or `${source}:${routeId}`
   extraRoutes: RouteInfo[];  // routes learned from realtime/schedule responses
 }
 
-const SOURCES: readonly Source[] = ['mbta', 'mit', 'ezride', 'bluebikes'];
-const PANEL_SOURCES: Record<Exclude<PanelId, 'bikes'>, Source[]> = {
-  subway: ['mbta'], bus: ['mbta', 'ezride'], shuttle: ['mit'],
-};
-const PANEL_MODES: Record<Exclude<PanelId, 'bikes'>, Mode[]> = {
-  subway: ['subway'], bus: ['bus', 'ezride'], shuttle: ['shuttle'],
-};
-const PASSIO_SOURCES: readonly Source[] = ['mit', 'ezride'];
 const MAX_TIMES = 3;
 
 /** A departure joined to its stop and route, with its countdown label. */
@@ -29,6 +23,7 @@ interface Placed { d: Departure; stop: Stop; route: RouteInfo; label: string }
 
 const stopKey = (s: Stop) => `${s.source}:${s.id}`;
 const byWalk = (a: Stop, b: Stop) => a.walkSec - b.walkSec || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+const walkMin = (s: { walkSec: number }) => Math.ceil(s.walkSec / 60);
 
 function groupBy<T>(items: T[], key: (t: T) => string): Map<string, T[]> {
   const out = new Map<string, T[]>();
@@ -54,7 +49,7 @@ function timeCells(placed: Placed[], nowMs: number): { cells: TimeCell[]; lead?:
   const shown: Placed[] = [];
   for (const p of [...placed].sort((a, b) => a.d.departureTime - b.d.departureTime)) {
     // Compare against the walk shown on screen (rounded up), so the two never contradict.
-    if (p.d.departureTime - nowMs < Math.ceil(p.stop.walkSec / 60) * 60_000) continue;
+    if (p.d.departureTime - nowMs < walkMin(p.stop) * 60_000) continue;
     if (shown.some((s) => isDuplicate(s, p))) continue;
     shown.push(p);
     if (shown.length === MAX_TIMES) break;
@@ -66,26 +61,8 @@ function timeCells(placed: Placed[], nowMs: number): { cells: TimeCell[]; lead?:
   return { cells, lead: shown[0] };
 }
 
-const passioServingCache = new WeakMap<PassioStatic, Map<string, Set<string>>>();
-
-/** Stop ids each Passio direction (`${routeId}:${headsign}`) boards at; a trip's last stop is drop-off only. */
-function passioServing(p: PassioStatic): Map<string, Set<string>> {
-  const cached = passioServingCache.get(p);
-  if (cached) return cached;
-  const out = new Map<string, Set<string>>();
-  for (const [tripId, trip] of p.trips) {
-    const key = `${trip.routeId}:${trip.headsign}`;
-    const set = out.get(key) ?? new Set<string>();
-    for (const t of (p.stopTimes.get(tripId) ?? []).slice(0, -1)) set.add(t.stopId);
-    out.set(key, set);
-  }
-  passioServingCache.set(p, out);
-  return out;
-}
-
 const nextDeparture = (row: BoardRow): number => row.times[0]?.departureTime ?? Infinity;
 
-const AGENCY: Record<Source, string> = { mbta: 'MBTA', mit: 'MIT shuttles', ezride: 'EZRide', bluebikes: 'Bluebikes' };
 const NOTE: Partial<Record<PanelStatus, string>> = {
   'delayed': 'data delayed',
   'schedule-fallback': 'live data unavailable, showing schedule',
@@ -93,19 +70,23 @@ const NOTE: Partial<Record<PanelStatus, string>> = {
 };
 
 // One note per agency that isn't fully live; shared panels name the agency so live rows aren't doubted.
-function panelNotes(sources: Source[], status: Record<Source, PanelStatus>): string[] {
+function panelNotes(sources: Source[], status: Record<Source, PanelStatus>, names: Map<Source, string>): string[] {
   return sources.flatMap((s) => {
     const note = NOTE[status[s]];
     if (!note) return [];
-    return [sources.length > 1 ? `${AGENCY[s]}: ${note}` : note[0].toUpperCase() + note.slice(1)];
+    return [sources.length > 1 ? `${names.get(s)}: ${note}` : note[0].toUpperCase() + note.slice(1)];
   });
 }
 
 export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: Alert[] } {
   const { discovered, nowMs, hide } = input;
+  const sources = input.feeds.map((f) => f.id);
+  const names = new Map(input.feeds.map((f) => [f.id, f.name]));
 
   const status = {} as Record<Source, PanelStatus>;
-  for (const s of SOURCES) status[s] = sourceStatus(input.health[s], nowMs, input.scheduled[s].some((d) => d.departureTime >= nowMs));
+  for (const s of sources) {
+    status[s] = sourceStatus(input.health[s], nowMs, input.scheduled[s].some((d) => d.departureTime >= nowMs));
+  }
 
   const routes = new Map(discovered.routes);
   for (const r of input.extraRoutes) {
@@ -114,10 +95,11 @@ export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: A
   }
   const stopByPlatform = new Map<string, Stop>();
   for (const s of discovered.stops) for (const p of s.platformIds) stopByPlatform.set(`${s.source}:${p}`, s);
+  const stopOf = (d: Departure) => stopByPlatform.get(`${d.source}:${d.stopId}`);
 
   const place = (d: Departure): Placed | null => {
     if (hide.includes(d.routeId) || hide.includes(`${d.source}:${d.routeId}`)) return null;
-    const stop = stopByPlatform.get(`${d.source}:${d.stopId}`);
+    const stop = stopOf(d);
     const route = routes.get(`${d.source}:${d.routeId}`);
     const label = countdownLabel(d, nowMs);
     return stop && route && label !== null ? { d, stop, route, label } : null;
@@ -127,14 +109,14 @@ export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: A
 
   // Live/scheduled merge per (stop, direction).
   const shown: Placed[] = [];
-  for (const s of SOURCES) {
+  for (const s of sources) {
     const liveUsable = status[s] === 'ok' || status[s] === 'delayed';
     const liveRaw = liveUsable ? input.live[s] : [];
     const live = groupBy(placeAll(liveRaw), mergeKey);
     // A scheduled departure whose trip live data has at the same stop (in or out of
     // the window, however late or early) is a stale copy of that trip.
     const tripAtStop = (d: Departure) => {
-      const stop = stopByPlatform.get(`${d.source}:${d.stopId}`);
+      const stop = stopOf(d);
       return d.tripId !== undefined && stop ? `${d.tripId}|${stopKey(stop)}` : null;
     };
     const liveTrips = new Set(liveRaw.map(tripAtStop));
@@ -146,20 +128,8 @@ export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: A
     for (const k of new Set([...live.keys(), ...sched.keys()])) shown.push(...(live.get(k) ?? sched.get(k)!));
   }
 
-  const panels: BoardPanel[] = [];
   const shownStops = new Set<Stop>();
   const shownRoutes = new Set<string>();
-  // A panel answers only for agencies with stops in it: a stale EZRide feed says nothing about
-  // the Buses panel when no EZRide stop is nearby.
-  const panelSources = (id: Exclude<PanelId, 'bikes'>) => PANEL_SOURCES[id].filter((src) =>
-    discovered.stops.some((s) => s.source === src && PANEL_MODES[id].includes(s.mode)));
-  const emit = (id: Exclude<PanelId, 'bikes'>, title: string, groups: BoardGroup[]) => {
-    const sources = panelSources(id);
-    const st = worstStatus(sources.map((s) => status[s]));
-    // A failing source keeps its panel (empty) so the UI can say live data is unavailable.
-    const failing = st !== 'ok' && st !== 'delayed' && sources.length > 0;
-    if (groups.length > 0 || failing) panels.push({ id, title, status: st, groups, notes: panelNotes(sources, status) });
-  };
   const makeRow = (key: string, placed: Placed[], extra: Partial<BoardRow> = {}): BoardRow | null => {
     const { cells: times, lead } = timeCells(placed, nowMs);
     if (!lead) return null;
@@ -167,59 +137,73 @@ export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: A
     return { key, route: lead.route, headsign: lead.d.headsign, times, ...extra };
   };
 
-  // Subway: one group per station, rows per route + headsign.
-  const subway = shown.filter((p) => p.d.mode === 'subway');
-  const stations = [...new Set(subway.map((p) => p.stop))].sort(byWalk);
-  const subwayGroups: BoardGroup[] = [];
-  for (const station of stations) {
-    const atStation = groupBy(subway.filter((p) => p.stop === station), (p) => `${p.d.routeId}:${p.d.headsign}`);
-    const rows = [...atStation.keys()].sort()
-      .map((k) => makeRow(k, atStation.get(k)!))
-      .filter((r): r is BoardRow => r !== null);
-    if (rows.length > 0) subwayGroups.push({
-      header: { name: station.name, walkMin: Math.ceil(station.walkSec / 60), walkEstimated: station.walkEstimated },
-      rows,
-    });
-  }
-  const subwayRoutes = new Set(subwayGroups.flatMap((g) => g.rows.map((r) => r.route)));
-  const subwayTitle = subwayRoutes.size === 1 ? [...subwayRoutes][0].longName : 'Subway';
-  emit('subway', subwayTitle, subwayGroups);
+  // One group per station, rows per route + headsign.
+  const byStation = (placed: Placed[]): BoardGroup[] => {
+    const groups: BoardGroup[] = [];
+    for (const station of [...new Set(placed.map((p) => p.stop))].sort(byWalk)) {
+      const atStation = groupBy(placed.filter((p) => p.stop === station), (p) => `${p.d.routeId}:${p.d.headsign}`);
+      const rows = [...atStation.keys()].sort()
+        .map((k) => makeRow(k, atStation.get(k)!))
+        .filter((r): r is BoardRow => r !== null);
+      if (rows.length > 0) groups.push({
+        header: { name: station.name, walkMin: walkMin(station), walkEstimated: station.walkEstimated },
+        rows,
+      });
+    }
+    return groups;
+  };
 
-  // Bus and shuttle: one row per direction at the closest stop serving it, chosen outside the time
-  // window so it never flips; if that stop has nothing in the window, the row is dropped.
+  // One row per direction at the closest stop serving it, chosen outside the time window so it
+  // never flips; if that stop has nothing in the window, the row is dropped.
   const serving = new Map<string, Set<Stop>>();
   const serve = (key: string, stop: Stop | undefined) => {
     if (!stop) return;
     const set = serving.get(key);
     if (set) set.add(stop); else serving.set(key, new Set([stop]));
   };
-  for (const s of SOURCES) {
-    for (const d of [...input.live[s], ...input.scheduled[s]]) {
-      serve(`${d.source}:${d.directionKey}`, stopByPlatform.get(`${d.source}:${d.stopId}`));
-    }
+  for (const s of sources) {
+    for (const d of [...input.live[s], ...input.scheduled[s]]) serve(`${d.source}:${d.directionKey}`, stopOf(d));
   }
-  for (const p of [discovered.passio.mit, discovered.passio.ezride]) {
-    if (!p) continue;
-    for (const [dirKey, stopIds] of passioServing(p)) {
-      for (const id of stopIds) serve(`${p.source}:${dirKey}`, stopByPlatform.get(`${p.source}:${id}`));
-    }
-  }
-  const closestRows = (placed: Placed[]): BoardGroup[] => {
+  for (const [key, platforms] of discovered.serving) for (const p of platforms) serve(key, stopByPlatform.get(p));
+  const closestStop = (placed: Placed[]): BoardGroup[] => {
     const rows: BoardRow[] = [];
     for (const [key, list] of groupBy(placed, (p) => `${p.d.source}:${p.d.directionKey}`)) {
       const stop = [...serving.get(key)!].sort(byWalk)[0];
       const row = makeRow(key, list.filter((p) => p.stop === stop),
-        { stopName: stop.name, walkMin: Math.ceil(stop.walkSec / 60), walkEstimated: stop.walkEstimated });
+        { stopName: stop.name, walkMin: walkMin(stop), walkEstimated: stop.walkEstimated });
       if (row) rows.push(row);
     }
     rows.sort((a, b) => nextDeparture(a) - nextDeparture(b) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
     return rows.length > 0 ? [{ rows }] : [];
   };
-  emit('bus', 'Buses', closestRows(shown.filter((p) => p.d.mode === 'bus' || p.d.mode === 'ezride')));
-  emit('shuttle', 'MIT shuttles', closestRows(shown.filter((p) => p.d.mode === 'shuttle')));
 
-  if (discovered.bikes.length > 0) {
-    panels.push({ id: 'bikes', title: 'Bluebikes', status: status.bluebikes, groups: [], notes: panelNotes(['bluebikes'], status) });
+  const title = (def: PanelDef, groups: BoardGroup[], panelSources: Source[]) => {
+    const named = def.nameBy === 'route'
+      ? new Set(groups.flatMap((g) => g.rows.map((r) => r.route.longName)))
+      : def.nameBy === 'feed' ? new Set(panelSources.map((s) => names.get(s)!)) : new Set<string>();
+    return named.size === 1 ? [...named][0] : def.title;
+  };
+
+  const panels: BoardPanel[] = [];
+  for (const def of PANELS) {
+    // A panel answers only for feeds with stops in it: a stale EZRide feed says nothing about
+    // the Buses panel when no EZRide stop is nearby.
+    const stations = input.stations.filter((s) => s.mode === def.id);
+    const panelSources = sources.filter((src) =>
+      discovered.stops.some((s) => s.source === src && s.mode === def.id) || stations.some((s) => s.source === src));
+    const st = worstStatus(panelSources.map((s) => status[s]));
+    const panel = (groups: BoardGroup[]): BoardPanel =>
+      ({ id: def.id, title: title(def, groups, panelSources), status: st, groups, notes: panelNotes(panelSources, status, names) });
+
+    if (def.rows === 'stations') {
+      if (stations.length > 0) panels.push({ ...panel([]), stations });
+      continue;
+    }
+    const placed = shown.filter((p) => p.d.mode === def.id);
+    const groups = def.rows === 'by-station' ? byStation(placed) : closestStop(placed);
+    // A failing feed keeps its panel (empty) so the UI can say live data is unavailable.
+    const failing = st !== 'ok' && st !== 'delayed' && panelSources.length > 0;
+    if (groups.length > 0 || failing) panels.push(panel(groups));
   }
 
   return { panels, alerts: relevantAlerts(input.alerts, shownStops, shownRoutes) };
@@ -238,7 +222,7 @@ function relevantAlerts(alerts: Alert[], stops: Set<Stop>, routes: Set<string>):
     const relevant =
       a.routeIds.some((r) => routes.has(`${a.source}:${r}`)) ||
       a.stopIds.some((s) => stopIds.has(`${a.source}:${s}`)) ||
-      (PASSIO_SOURCES.includes(a.source) && a.routeIds.length === 0 && sources.has(a.source));
+      (a.agencyWide === true && sources.has(a.source));
     const key = `${a.source}:${a.id}`;
     if (!relevant || seen.has(key)) return false;
     seen.add(key);
