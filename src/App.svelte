@@ -1,7 +1,7 @@
 <script lang="ts">
   import { resolveConfig } from './config';
   import { buildBoard } from './lib/board/build';
-  import { PANELS } from './lib/board/panels';
+  import { PANELS, panelToHide } from './lib/board/panels';
   import AlertStrip from './lib/ui/AlertStrip.svelte';
   import Header from './lib/ui/Header.svelte';
   import Panel from './lib/ui/Panel.svelte';
@@ -9,7 +9,7 @@
   import { paletteFor } from './lib/ui/palette';
   import { createPoller } from './lib/data/poller.svelte';
   import { serviceDate } from './lib/util/time';
-  import type { BoardPanel } from './lib/types';
+  import type { BoardPanel, PanelId } from './lib/types';
 
   const cfg = resolveConfig(location.search);
   // `?demo` on the dev server shows sample data covering every state (src/lib/data/demo.svelte.ts).
@@ -79,12 +79,42 @@
 
   const EMPTY_SHARE = 1; // room for the title and a note or two
 
+  // On a screen too short for every panel to show a row, the lowest-priority panels are hidden one
+  // at a time (cfg.priority) until the rest fit. Each Panel reports whether it fits through `fits`.
+  let hidden = $state<PanelId[]>([]);
+  let fits = $state<Record<string, boolean>>({});
+  const panelIds = $derived((board?.panels ?? []).map((p) => p.id).join());
+  // Start over when the screen or the set of panels changes, so more room shows everything again.
+  const reset = () => {
+    hidden = [];
+    fits = {};
+  };
+  $effect(() => {
+    void panelIds;
+    void landscape;
+    reset();
+  });
+  $effect(() => {
+    addEventListener('resize', reset);
+    return () => removeEventListener('resize', reset);
+  });
+  $effect(() => {
+    const shown = (board?.panels ?? []).map((p) => p.id).filter((id) => !hidden.includes(id));
+    const next = panelToHide(shown, fits, cfg.priority);
+    if (next) hidden = [...hidden, next];
+  });
+  const listFormat = new Intl.ListFormat('en', { type: 'conjunction' });
+  const hiddenNote = $derived.by(() => {
+    const titles = (board?.panels ?? []).filter((p) => hidden.includes(p.id)).map((p) => p.title);
+    return titles.length > 0 ? `${listFormat.format(titles)} hidden: screen too short.` : '';
+  });
+
   // Landscape: each panel in its PANELS column. Portrait: one column in PANELS order.
   const columns = $derived.by(() => {
     const cols = new Map<number, { panel: BoardPanel; share: number }[]>();
     for (const def of PANELS) {
       const panel = board?.panels.find((p) => p.id === def.id);
-      if (!panel) continue;
+      if (!panel || hidden.includes(def.id)) continue;
       const c = landscape ? def.column : 0;
       // A panel with nothing to list (only "live data unavailable") gives its room to the others.
       const empty = !panel.stations && panel.groups.every((g) => g.rows.length === 0);
@@ -112,7 +142,7 @@
         <div class="column">
           {#each col as { panel, share } (panel.id)}
             <div class="slot" style:flex-grow={share}>
-              <Panel {panel} />
+              <Panel {panel} bind:fits={fits[panel.id]} />
             </div>
           {/each}
         </div>
@@ -122,7 +152,11 @@
 
   {#if board}<AlertStrip alerts={board.alerts} />{/if}
   <!-- Always shown: toggling it would resize every panel. -->
-  {#if board}<p class="legend">Times in italics are scheduled. Others are live.</p>{/if}
+  {#if board}
+    <p class="legend">
+      Times in italics are scheduled. Others are live.{#if hiddenNote}{' '}<span class="hidden-note">{hiddenNote}</span>{/if}
+    </p>
+  {/if}
 </div>
 
 <style>
@@ -174,5 +208,12 @@
     font-size: 0.75em;
     font-style: italic;
     color: var(--muted);
+  }
+  /* Says which panels a short screen left out, so a missing panel isn't read as no service. */
+  .hidden-note {
+    font-family: var(--font-sans);
+    font-style: normal;
+    font-weight: 700;
+    color: var(--emphasis);
   }
 </style>

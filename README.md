@@ -37,6 +37,7 @@ Settings live in `src/config.ts` (`defaultConfig`). The board can override some 
 | `name` | `?name=Stata%20Center` | Building name shown beside the number. |
 | `palette` | `?palette=apricot` | Frame color: an SA+P color (`apricot`, `yellow`, `pink`, `blue`, `orange`, `green`), `rotate` through them daily (default), or `mit` (black with MIT red accents). |
 | `inset` | `?inset=3` | Margin, in % of the screen's shorter side (0-10), for TVs that crop the edges (overscan). Default 0. |
+| `priority` | `?priority=shuttle,subway` | Which panels to keep on a screen too short for all of them, most important first (`subway`, `bus`, `shuttle`, `bikes`). Panels left out follow in the default order: Red Line, buses, shuttles, Bluebikes. |
 
 Other `Config` fields are set in code only (`src/config.ts`):
 
@@ -54,6 +55,7 @@ Other `Config` fields are set in code only (`src/config.ts`):
 - Long names are shortened the way MBTA signs shorten them (Massachusetts → Mass, Avenue → Ave, Square → Sq, and → &; the list is in `src/lib/ui/format.ts`). A destination's "via …" part is set lighter, so when a row is cut it loses the route description, never the destination.
 - Text that doesn't fit is cut between whole words, never inside one, with "…" and no dangling "&", "to" or "via" (`src/lib/ui/fit.ts`). A walk time ("2 min walk") is never split: the stop name shortens first. A shuttle row that can't fit its route name and destination shows the destination alone, since the badge names the route. Screen readers still get the full text.
 - The building name is never cut: it shrinks to fit (`src/lib/ui/shrink.ts`), down to the size of body text, and below that wraps between words.
+- Every panel shown has room for at least one row. On a screen too short for that (a phone held sideways, a small window), the lowest-priority panels are hidden (`priority` above), and the line at the bottom says which: "Bluebikes hidden: screen too short." More room brings them back.
 - Alerts are screened for profanity, since people type them. A flagged alert isn't shown; see [Wording filter](#wording-filter).
 - MIT shuttle rows lead with the route name ("Tech Shuttle to Kendall Square T"), since riders know shuttles by route. Routes Passio marks "out of service" are never shown.
 - When one agency's data isn't fully live, the panel title says which ("EZRide: data delayed"), so live rows from the other agency in the same panel aren't called into question.

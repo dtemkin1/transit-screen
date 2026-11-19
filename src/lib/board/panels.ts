@@ -16,3 +16,15 @@ export const PANELS: readonly PanelDef[] = [
   { id: 'shuttle', title: 'Shuttles', nameBy: 'feed', rows: 'closest-stop', share: 1.6, column: 1 },
   { id: 'bikes', title: 'Bikes', nameBy: 'feed', rows: 'stations', share: 1.6, column: 0 },
 ];
+
+/**
+ * On a screen too short for every shown panel to fit a row (`fits[id] === false`), the next panel to
+ * hide: the shown one last in `priority`. Never the only one left.
+ */
+export function panelToHide(
+  shown: readonly PanelId[], fits: Partial<Record<PanelId, boolean>>, priority: readonly PanelId[],
+): PanelId | undefined {
+  if (shown.length < 2 || !shown.some((id) => fits[id] === false)) return undefined;
+  const ranked = [...priority, ...shown.filter((id) => !priority.includes(id))];
+  return ranked.reverse().find((id) => shown.includes(id));
+}

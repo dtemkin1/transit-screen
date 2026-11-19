@@ -5,7 +5,8 @@
   import Row from './Row.svelte';
   import StationList from './StationList.svelte';
 
-  let { panel }: { panel: BoardPanel } = $props();
+  /** `fits` reports whether the panel has room to show anything useful: one row, or its note. */
+  let { panel, fits = $bindable() }: { panel: BoardPanel; fits?: boolean } = $props();
 
   // Both in the panel's em, so the header-to-row ratio passed to trimPanel is exact.
   const ROW_EM = 2.5;
@@ -24,6 +25,14 @@
   const emptyNotes = $derived.by(() => {
     const notes = panel.notes.filter((n) => !/data delayed$/i.test(n)).map((n) => n.replace(/, showing schedule$/, ''));
     return notes.length > 0 ? [...new Set(notes)] : ['Live data unavailable'];
+  });
+
+  // In rows: the first row (with its station header, for the subway), or one line of note.
+  const needed = $derived(
+    unavailable ? 0.5 : panel.stations ? 1 : panel.groups[0]?.header ? 1 + HEADER_EM / ROW_EM : 1,
+  );
+  $effect(() => {
+    fits = maxLines >= needed;
   });
 
   function measure() {

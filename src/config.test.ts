@@ -1,6 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { resolveConfig, defaultConfig, pickWorkerUrl } from './config';
+import { resolveConfig, defaultConfig, parsePriority, pickWorkerUrl } from './config';
 import { walkLimits } from './lib/feeds';
+
+describe('priority', () => {
+  it('defaults to Red Line, buses, shuttles, Bluebikes', () => {
+    expect(resolveConfig('').priority).toEqual(['subway', 'bus', 'shuttle', 'bikes']);
+  });
+  it('?priority= puts the named panels first and keeps the rest in default order', () => {
+    expect(resolveConfig('?priority=shuttle,subway').priority).toEqual(['shuttle', 'subway', 'bus', 'bikes']);
+  });
+  it('ignores unknown and repeated names', () => {
+    expect(parsePriority('bikes, ferry,bikes,,bus')).toEqual(['bikes', 'bus', 'subway', 'shuttle']);
+    expect(resolveConfig('?priority=nonsense').priority).toEqual(defaultConfig.priority);
+  });
+});
 
 describe('pickWorkerUrl', () => {
   it('uses the configured URL when set', () => {

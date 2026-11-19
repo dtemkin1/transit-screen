@@ -1,6 +1,6 @@
 import { isPaletteName, type PaletteChoice } from './lib/ui/palette';
 import type { FeedConfig } from './lib/feeds/types';
-import type { LatLon } from './lib/types';
+import type { LatLon, PanelId } from './lib/types';
 
 export interface Config {
   building: string; // building number, shown large in the header ("W41")
@@ -12,6 +12,16 @@ export interface Config {
   feeds: FeedConfig[];             // board order within a panel follows this order
   pin: string[]; hide: string[];   // stop, route or alert ids; routes and alerts also as `${source}:${id}`
   walkSpeedMps: number; walkDetourFactor: number;
+  /** Most important first: on a screen too short for every panel, the last ones are hidden. */
+  priority: PanelId[];
+}
+
+const PANEL_IDS: readonly PanelId[] = ['subway', 'bus', 'shuttle', 'bikes'];
+
+/** "shuttle,subway" puts those first, in that order; panels it leaves out follow in default order. */
+export function parsePriority(raw: string, fallback: readonly PanelId[] = PANEL_IDS): PanelId[] {
+  const named = raw.split(',').map((s) => s.trim()).filter((s): s is PanelId => (PANEL_IDS as readonly string[]).includes(s));
+  return [...new Set([...named, ...fallback])];
 }
 
 /** An unset or empty VITE_WORKER_URL (e.g. an unset CI variable) falls back to local dev. */
@@ -59,6 +69,7 @@ export const defaultConfig: Config = {
   hide: [],
   walkSpeedMps: 1.3,
   walkDetourFactor: 1.3,
+  priority: [...PANEL_IDS],
 };
 
 export function resolveConfig(search: string, base: Config = defaultConfig): Config {
@@ -78,6 +89,9 @@ export function resolveConfig(search: string, base: Config = defaultConfig): Con
 
   const palette = params.get('palette');
   if (palette && (palette === 'rotate' || isPaletteName(palette))) config.palette = palette;
+
+  const priority = params.get('priority');
+  if (priority) config.priority = parsePriority(priority, base.priority);
 
   const inset = Number(params.get('inset'));
   if (Number.isFinite(inset)) config.inset = Math.min(10, Math.max(0, inset));
