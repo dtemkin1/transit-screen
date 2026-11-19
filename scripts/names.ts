@@ -7,16 +7,22 @@ import { parseCsv } from '../src/lib/feeds/gtfs/csv.ts'
 export interface NameReport {
   checkedAt: string
   checked: number
-  feeds: Record<string, number>                        // names checked per feed that could be read
-  flagged: { source: string; name: string }[]          // add these to LOCAL_NAMES (or they're real problems)
-  allowlisted: { source: string; name: string }[]      // passed only because of LOCAL_NAMES
-  failed: string[] // feeds that couldn't be read, so an empty `flagged` isn't mistaken for all-clear
+  /** Names checked per feed that could be read. */
+  feeds: Record<string, number>
+  /** Add these to LOCAL_NAMES (or they're real problems). */
+  flagged: { source: string; name: string }[]
+  /** Passed only because of LOCAL_NAMES. */
+  allowlisted: { source: string; name: string }[]
+  /** Feeds that couldn't be read, so an empty `flagged` isn't mistaken for all-clear. */
+  failed: string[]
 }
 
 export interface NameSources {
   mbtaKey?: string
-  gtfs: Record<string, string> // feed id -> static zip URL
-  gbfs: Record<string, string> // feed id -> gbfs.json autodiscovery URL
+  /** Feed id → static zip URL. */
+  gtfs: Record<string, string>
+  /** Feed id → gbfs.json autodiscovery URL. */
+  gbfs: Record<string, string>
 }
 
 type Fetch = typeof fetch

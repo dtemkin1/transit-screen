@@ -3,14 +3,23 @@ import type { FeedConfig } from './lib/feeds/types';
 import type { LatLon, PanelId } from './lib/types';
 
 export interface Config {
-  building: string; // building number, shown large in the header ("W41")
-  name: string;     // building name beside it ("Metropolitan Warehouse"); may be empty
-  palette: PaletteChoice; // frame color, or 'rotate' for a new SA+P one each day
-  inset: number;  // margin for TV overscan, % of the screen's shorter side (0-10)
+  /** Building number, shown large in the header ("W41"). */
+  building: string;
+  /** Building name beside it ("Metropolitan Warehouse"); may be empty. */
+  name: string;
+  /** Frame color, or 'rotate' for a new SA+P one each day. */
+  palette: PaletteChoice;
+  /** Margin for TV overscan, in % of the screen's shorter side (0-10). */
+  inset: number;
   location: LatLon; workerUrl: string;
-  locate: boolean; // look `building` up on the MIT campus map for `location` (and `name`, when empty)
-  feeds: FeedConfig[];             // board order within a panel follows this order
-  pin: string[]; hide: string[];   // stop, route or alert ids; routes and alerts also as `${source}:${id}`
+  /** Look `building` up on the MIT campus map for `location` (and `name`, when empty). */
+  locate: boolean;
+  /** Rows within a panel follow this order. */
+  feeds: FeedConfig[];
+  /** Stop ids to keep even past their walk limit (within the search radius). */
+  pin: string[];
+  /** Stop, route or alert ids to leave out; routes and alerts also as `${source}:${id}`. */
+  hide: string[];
   walkSpeedMps: number; walkDetourFactor: number;
   /** Most important first: on a screen too short for every panel, the last ones are hidden. */
   priority: PanelId[];
@@ -34,8 +43,10 @@ const passioRealtime = (agency: string) => ({
   serviceAlerts: `https://passio3.com/${agency}/passioTransit/gtfs/realtime/serviceAlerts.json`,
 });
 
-// Walk limits are how far riders will go for each: farther for the T than for a shuttle.
-// A GTFS feed's static zip comes through the Worker, so a new one also needs an entry there.
+/**
+ * The agencies on the board. Walk limits are how far riders will go: farther for the T than for a
+ * shuttle. A GTFS feed's static zip comes through the Worker, so a new one also needs an entry there.
+ */
 export const FEEDS: FeedConfig[] = [
   // 7 min bus: brings in the 70 at Mass Ave @ Sidney St (6.7 min walk) beside the 1 and the 85.
   { kind: 'mbta', id: 'mbta', name: 'MBTA', walkMin: { subway: 15, bus: 7 } },
@@ -47,7 +58,8 @@ export const FEEDS: FeedConfig[] = [
     kind: 'gtfs', id: 'ezride', name: 'EZRide', mode: 'bus', walkMin: 6,
     realtime: passioRealtime('charlesriver'), color: '#1F77B4',
     badge: { text: 'EZ', color: '#1F77B4', textColor: '#FFFFFF' },
-    headsign: 'last-stop', // EZRide's trip_headsign names the service ("Evening Service")
+    // EZRide's trip_headsign names the service ("Evening Service"), not a destination.
+    headsign: 'last-stop',
   },
   // 8 min: the nearest docks from W41 are 3.7, 4.1, 5.9 and 7.5 min away on foot.
   {

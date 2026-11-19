@@ -1,14 +1,16 @@
-// SA+P frame colors (sap.mit.edu `sap-panel-*`), each with the dark partner the site pairs it
-// with; the light frames are too pale to separate panels on gray, so rails use the partner.
+/**
+ * SA+P frame colors (sap.mit.edu `sap-panel-*`), each with the dark partner the site pairs it with;
+ * the light frames are too pale to separate panels on gray, so rails use the partner.
+ */
 export const PALETTES = {
-  apricot: { frame: '#ffc486', onFrame: '#000000', rail: '#6b0033', brand: 'sap' }, // the Met Warehouse page
+  /** The color of the site's Met Warehouse page. */
+  apricot: { frame: '#ffc486', onFrame: '#000000', rail: '#6b0033', brand: 'sap' },
   yellow: { frame: '#e0fd65', onFrame: '#000000', rail: '#707f00', brand: 'sap' },
   pink: { frame: '#eeb1ff', onFrame: '#000000', rail: '#02777c', brand: 'sap' },
   blue: { frame: '#9ab1ff', onFrame: '#000000', rail: '#6b0033', brand: 'sap' },
   orange: { frame: '#fd6234', onFrame: '#000000', rail: '#6b0033', brand: 'sap' },
   green: { frame: '#707f00', onFrame: '#000000', rail: '#707f00', brand: 'sap' },
-  // MIT (brand.mit.edu/color): black with red accents, for buildings outside SA+P. `brand` also
-  // picks the MIT typefaces and accent colors in app.css.
+  /** MIT (brand.mit.edu/color): black with red accents, for buildings outside SA+P. Its `brand` picks MIT's type and accents in app.css. */
   mit: { frame: '#000000', onFrame: '#ffffff', rail: '#000000', brand: 'mit' },
 } as const;
 

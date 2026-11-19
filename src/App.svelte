@@ -12,12 +12,12 @@
   import type { BoardPanel, PanelId } from './lib/types';
 
   const cfg = resolveConfig(location.search);
-  // `?demo` on the dev server shows sample data covering every state (src/lib/data/demo.svelte.ts).
+  /** `?demo` on the dev server shows sample data covering every state (src/lib/data/demo.svelte.ts). */
   const demo = import.meta.env.DEV ? new URLSearchParams(location.search).get('demo') : null;
   const poller = demo !== null ? createDemoPoller(demo) : createPoller(cfg);
   const data = poller.state;
 
-  // Picked once per load; the daily 04:00 reload moves a rotating palette on.
+  /** Picked once per load; the daily 04:00 reload moves a rotating palette on. */
   const palette = paletteFor(cfg.palette, serviceDate(Date.now()));
   const root = document.documentElement;
   root.style.setProperty('--frame', palette.frame);
@@ -47,8 +47,10 @@
     };
   });
 
-  // One column on screens clearly taller than wide, or too narrow for two columns of 16 px type
-  // (36 type-widths, as app.css caps it); the header reads the same <html data-layout>.
+  /**
+   * One column on screens clearly taller than wide, or too narrow for two columns of 16 px type
+   * (36 type-widths, as app.css caps it). The header reads the same `<html data-layout>`.
+   */
   const portraitQuery = matchMedia('(max-aspect-ratio: 5/6), (max-width: 575px)');
   let landscape = $state(!portraitQuery.matches);
   $effect(() => {
@@ -77,14 +79,18 @@
       : undefined,
   );
 
-  const EMPTY_SHARE = 1; // room for the title and a note or two
+  /** Height share of a panel with nothing to list: room for the title and a note or two. */
+  const EMPTY_SHARE = 1;
 
-  // On a screen too short for every panel to show a row, the lowest-priority panels are hidden one
-  // at a time (cfg.priority) until the rest fit. Each Panel reports whether it fits through `fits`.
+  /**
+   * Panels left out because the screen is too short for each to show a row: the lowest priority
+   * (cfg.priority) goes first, one at a time, until the rest fit.
+   */
   let hidden = $state<PanelId[]>([]);
+  /** Whether each panel has room for a row, as it reports through `bind:fits`. */
   let fits = $state<Record<string, boolean>>({});
   const panelIds = $derived((board?.panels ?? []).map((p) => p.id).join());
-  // Start over when the screen or the set of panels changes, so more room shows everything again.
+  /** Starts over, so more room shows everything again; runs when the screen or the set of panels changes. */
   const reset = () => {
     hidden = [];
     fits = {};
@@ -109,7 +115,7 @@
     return titles.length > 0 ? `${listFormat.format(titles)} hidden: screen too short.` : '';
   });
 
-  // Landscape: each panel in its PANELS column. Portrait: one column in PANELS order.
+  /** Landscape: each panel in its PANELS column. Portrait: one column in PANELS order. */
   const columns = $derived.by(() => {
     const cols = new Map<number, { panel: BoardPanel; share: number }[]>();
     for (const def of PANELS) {

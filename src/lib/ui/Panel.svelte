@@ -5,11 +5,15 @@
   import Row from './Row.svelte';
   import StationList from './StationList.svelte';
 
-  /** `fits` reports whether the panel has room to show anything useful: one row, or its note. */
-  let { panel, fits = $bindable() }: { panel: BoardPanel; fits?: boolean } = $props();
+  let { panel, fits = $bindable() }: {
+    panel: BoardPanel;
+    /** Set by the panel: whether it has room to show anything useful, one row or its note. */
+    fits?: boolean;
+  } = $props();
 
-  // Both in the panel's em, so the header-to-row ratio passed to trimPanel is exact.
+  /** Row height, in the panel's em. */
   const ROW_EM = 2.5;
+  /** Station header height, also in the panel's em, so the ratio passed to trimPanel is exact. */
   const HEADER_EM = 1.45;
 
   let body: HTMLElement | undefined = $state();
@@ -21,13 +25,13 @@
   const shown = $derived(trimPanel(panel, maxLines, HEADER_EM / ROW_EM));
   const hasRows = $derived(panel.groups.some((g) => g.rows.length > 0));
   const unavailable = $derived((panel.status === 'unavailable' || panel.status === 'schedule-fallback') && !hasRows);
-  // With nothing listed, "showing schedule" would be untrue, so an empty panel says only what's down.
+  /** With nothing listed, "showing schedule" would be untrue, so an empty panel says only what's down. */
   const emptyNotes = $derived.by(() => {
     const notes = panel.notes.filter((n) => !/data delayed$/i.test(n)).map((n) => n.replace(/, showing schedule$/, ''));
     return notes.length > 0 ? [...new Set(notes)] : ['Live data unavailable'];
   });
 
-  // In rows: the first row (with its station header, for the subway), or one line of note.
+  /** Room needed, in rows: the first row (with its station header, for the subway), or one line of note. */
   const needed = $derived(
     unavailable ? 0.5 : panel.stations ? 1 : panel.groups[0]?.header ? 1 + HEADER_EM / ROW_EM : 1,
   );

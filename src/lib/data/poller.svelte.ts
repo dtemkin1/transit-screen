@@ -30,9 +30,12 @@ export interface PollerState {
   stations: Station[];
   extraRoutes: RouteInfo[];
   now: number;
-  discoveryFailures: number;  // failed or empty discoveries in a row, before the first success
-  name?: string;              // the building's name from the campus map, when looked up
-  unknownBuilding?: boolean;  // the campus map has no building by the configured name
+  /** Failed or empty discoveries in a row, before the first success. */
+  discoveryFailures: number;
+  /** The building's name from the campus map, when looked up. */
+  name?: string;
+  /** The campus map has no building with the configured number. */
+  unknownBuilding?: boolean;
 }
 
 const SEC = 1000;
@@ -108,16 +111,18 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
     return typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : undefined;
   };
 
-  // The feed's own timestamp (plus GBFS `ttl`) caps freshness, so a frozen feed doesn't read as live.
-  const markOk = (source: Source, feedTimeSec?: unknown, validForSec?: unknown) => {
+  /** The feed's own timestamp (plus GBFS `ttl`) caps freshness, so a frozen feed doesn't read as live. */
+  const markOk =(source: Source, feedTimeSec?: unknown, validForSec?: unknown) => {
     const now = deps.now();
     const t = seconds(feedTimeSec);
     state.health[source] = { lastOk: t === undefined ? now : Math.min(now, (t + (seconds(validForSec) ?? 0)) * 1000) };
   };
 
-  // Routes and alerts are kept per poll; state holds their deduped union.
+  /** Each poll's latest routes; state holds their deduped union. */
   const routesByPoll = new Map<string, RouteInfo[]>();
-  const reported = new Set<string>();  // hidden alerts already reported
+  /** Hidden alerts already reported. */
+  const reported = new Set<string>();
+  /** Each poll's latest alerts; state holds their deduped union. */
   const alertsByPoll = new Map<string, Alert[]>();
 
   function apply(feed: FeedConfig, poll: string, u: FeedUpdate) {
@@ -159,7 +164,7 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
     routes: dedupeBy([...d.routes.values(), ...state.extraRoutes].filter((r) => r.source === id), keyOf),
   });
 
-  // Every poll reads state.discovered when it runs, so a re-discovery is picked up on the next cycle.
+  /** Every poll reads state.discovered when it runs, so a re-discovery is picked up on the next cycle. */
   function startPolls() {
     for (const feed of cfg.feeds) {
       for (const poll of adapterFor(feed).polls(feed)) {
@@ -177,7 +182,10 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
   const size = (d: Discovered) => d.stops.length + d.stations.length;
   const isPartial = (d: Discovered) => cfg.feeds.some((f) => !(f.id in d.feeds));
 
-  // Keeps last known station counts; a newly present feed starts fresh so it isn't "unavailable" before its first poll.
+  /**
+   * Keeps last known station counts; a newly present feed starts fresh so it isn't "unavailable"
+   * before its first poll.
+   */
   function adopt(d: Discovered) {
     const old = new Map(state.stations.map((s) => [keyOf(s), s]));
     state.discovered = d;
@@ -189,8 +197,8 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
 
   let pollsStarted = false;
 
-  // The configured building's position, looked up once; a failed lookup fails discovery, which retries.
   let located: Config | undefined = cfg.locate ? undefined : cfg;
+  /** The configured building's position, looked up once; a failed lookup fails discovery, which retries. */
   async function site(): Promise<Config> {
     if (located) return located;
     const b = await deps.lookupBuilding(cfg.building);

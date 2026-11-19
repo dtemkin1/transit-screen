@@ -2,11 +2,16 @@
   import { TZ } from '../util/time';
   import { shrinkToFit } from './shrink';
 
-  /** `tag` marks the board as not live, e.g. "Sample data" in demo mode. */
-  let { building, name, now, tag }: { building: string; name: string; now: number; tag?: string } = $props();
+  let { building, name, now, tag }: {
+    building: string;
+    name: string;
+    now: number;
+    /** Marks the board as not live, e.g. "Sample data" in demo mode. */
+    tag?: string;
+  } = $props();
 
   const clockFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' });
-  // Digits large, "PM" small: the digits are what people read from across the room.
+  /** Digits large, "PM" small: the digits are what people read from across the room. */
   const clock = $derived.by(() => {
     const parts = clockFmt.formatToParts(now);
     const period = parts.find((p) => p.type === 'dayPeriod')?.value ?? '';

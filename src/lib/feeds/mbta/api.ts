@@ -32,8 +32,6 @@ export function chunk<T>(items: readonly T[], size = MAX_IDS_PER_REQUEST): T[][]
   return out;
 }
 
-// ---- stops ----
-
 export function stopsUrl(cfg: Config, mode: 'subway' | 'bus', maxWalkMin: number): string {
   const radius = metresToRadiusDegrees(candidateRadiusM(maxWalkMin, cfg), cfg.location.lat).toFixed(5);
   return url(cfg, 'stops', {
@@ -68,8 +66,6 @@ export function parseStops(json: unknown, mode: 'subway' | 'bus', source: Source
   return [...out.values()];
 }
 
-
-// ---- routes / departures ----
 
 function routeModeOf(type: unknown): Mode | undefined {
   if (type === 0 || type === 1) return 'subway';
@@ -132,8 +128,6 @@ function parseTimed(
   return { departures, routes: [...routes.values()] };
 }
 
-// ---- predictions ----
-
 export function predictionsUrl(cfg: Config, platformIds: string[]): string {
   return url(cfg, 'predictions', {
     'filter[stop]': platformIds.join(','),
@@ -148,8 +142,6 @@ export function predictionsUrl(cfg: Config, platformIds: string[]): string {
 export function parsePredictions(json: unknown, source: Source = 'mbta'): { departures: Departure[]; routes: RouteInfo[] } {
   return parseTimed(json, true, source);
 }
-
-// ---- schedules ----
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const hhmm = (minutes: number) => `${pad2(Math.floor(minutes / 60))}:${pad2(minutes % 60)}`;
@@ -173,8 +165,6 @@ export function schedulesUrl(cfg: Config, platformIds: string[], nowMs: number):
 export function parseSchedules(json: unknown, source: Source = 'mbta'): { departures: Departure[]; routes: RouteInfo[] } {
   return parseTimed(json, false, source);
 }
-
-// ---- alerts ----
 
 /** MBTA ANDs filter[route] with filter[stop]; pass only one list per request unless that is intended. */
 export function alertsUrl(cfg: Config, routeIds: string[], stopIds: string[]): string {

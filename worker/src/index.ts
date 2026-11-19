@@ -99,8 +99,8 @@ async function gtfs(deps: Deps, id: string): Promise<Response> {
   return cached(deps, key, () => deps.fetch(GTFS_STATIC[id]), GTFS_TTL)
 }
 
-// whereis.mit.edu (MIT's campus map) has every building but sends no CORS header.
-const WHEREIS = 'https://whereis.mit.edu/search?type=query&output=json&q='
+/** whereis.mit.edu (MIT's campus map) has every building but sends no CORS header. */
+const WHEREIS ='https://whereis.mit.edu/search?type=query&output=json&q='
 const BUILDING_ID = /^[A-Z0-9]{1,8}$/
 const BUILDING_TTL = 30 * 86400
 
@@ -111,10 +111,12 @@ interface WhereisHit {
   long_wgs84?: number
 }
 
-// The board reports each alert it hides for its wording, so a false positive (a real street the
-// word list flags) shows up in the Worker's logs instead of only on a kiosk's console.
 const REPORT_MAX_BYTES = 4096
 
+/**
+ * Logs each alert the board hid for its wording, so a false positive (a real street the word list
+ * flags) shows up in the Worker's logs instead of only on a kiosk's console.
+ */
 async function report(req: Request): Promise<Response> {
   if (req.method !== 'POST') return text(405, 'method not allowed')
   const raw = await req.text()

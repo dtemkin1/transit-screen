@@ -11,7 +11,7 @@
   const next = $derived(row.times[0]);
   const nextMin = $derived(next ? MINUTES.exec(next.label)?.[1] : undefined);
   const later = $derived(row.times.slice(1));
-  // "then 17, 31 min": the unit once, after the last time, when every later time is in minutes.
+  /** "then 17, 31 min": the unit once, after the last time, when every later time is in minutes. */
   const laterText = $derived.by(() => {
     const nums = later.map((t) => MINUTES.exec(t.label)?.[1]);
     return nums.every((n) => n !== undefined) ? `${nums.join(', ')} min` : later.map((t) => t.label).join(', ');
@@ -19,18 +19,18 @@
   const stop = $derived(row.stopName !== undefined ? abbreviate(row.stopName) : '');
   const walk = $derived(row.stopName !== undefined ? `${row.walkEstimated ? '~' : ''}${row.walkMin} min walk` : '');
   const headsign = $derived(abbreviate(row.headsign));
-  // A cut row loses the lighter " via …" part first, never the destination.
+  /** The destination and its " via …" part, set lighter, so a cut row loses that first. */
   const parts = $derived(splitVia(headsign));
   const destination = $derived<Segment[]>([{ text: parts.dest }, ...(parts.via ? [{ text: parts.via, cls: 'toward' }] : [])]);
-  // Named routes ("Tech Shuttle") lead with the name; everything else leads with the destination.
-  // When the name and destination don't both fit, the destination alone shows (the badge names the route).
+  /** Named routes ("Tech Shuttle") lead with the name; everything else leads with the destination. */
   const routeName = $derived(row.route.named ? row.route.longName || row.route.shortName : '');
+  /** When the name and destination don't both fit, the destination shows alone (the badge names the route). */
   const title = $derived<Segment[][]>(
     !routeName ? [destination]
     : row.headsign && row.headsign !== routeName ? [[{ text: routeName }, { text: ` to ${headsign}`, cls: 'toward' }], destination]
     : [[{ text: routeName }]],
   );
-  // The walk time ("2 min walk") is never split; the stop name gives way first, then the status.
+  /** The walk time ("2 min walk") is never split; the stop name gives way first, then the status. */
   const sub = $derived<Segment[]>([
     ...(next?.status ? [{ text: next.status, cls: 'status' }] : []),
     ...(next?.status && stop ? [{ text: '. ' }] : []),

@@ -6,8 +6,10 @@ export interface PanelDef {
   /** Use the name of the one route ("Red Line") or feed ("Bluebikes") shown, when there is just one. */
   nameBy?: 'route' | 'feed';
   rows: 'by-station' | 'closest-stop' | 'stations';
-  share: number;   // fixed height share, so panel borders stay put as departures come and go
-  column: number;  // landscape column; portrait stacks panels in this table's order
+  /** Fixed height share, so panel borders stay put as departures come and go. */
+  share: number;
+  /** Landscape column; portrait stacks panels in this table's order. */
+  column: number;
 }
 
 export const PANELS: readonly PanelDef[] = [

@@ -3,8 +3,10 @@ import type { Alert, Departure, Mode, RouteInfo, Source, Station, Stop, Unit } f
 import type { fetchBytes, fetchJson } from '../data/worker-client';
 
 interface FeedBase {
-  id: Source;     // keys state and route ids; the Worker serves a GTFS feed's zip under it
-  name: string;   // agency name in panel notes and titles ("EZRide: data delayed")
+  /** Keys state and route ids; the Worker serves a GTFS feed's zip under it. */
+  id: Source;
+  /** Agency name in panel notes and titles ("EZRide: data delayed"). */
+  name: string;
 }
 
 export interface MbtaFeed extends FeedBase {
@@ -18,11 +20,14 @@ export interface GtfsFeed extends FeedBase {
   walkMin: number;
   /** GTFS-RT as JSON (Passio serves it). Without it the feed shows its schedule only. */
   realtime?: { tripUpdates: string; serviceAlerts?: string };
-  color: string;  // for routes the feed publishes without one
+  /** For routes the feed publishes without one. */
+  color: string;
   /** One badge for every route, for agencies that run everything under one banner. */
   badge?: { text: string; color: string; textColor: string };
-  named?: boolean;              // rows lead with the route name ("Tech Shuttle to Kendall")
-  headsign?: 'trip' | 'last-stop'; // 'last-stop' when trip_headsign isn't a destination
+  /** Rows lead with the route name ("Tech Shuttle to Kendall"). */
+  named?: boolean;
+  /** 'last-stop' when trip_headsign isn't a destination. */
+  headsign?: 'trip' | 'last-stop';
 }
 
 export interface GbfsFeed extends FeedBase {
@@ -30,7 +35,8 @@ export interface GbfsFeed extends FeedBase {
   mode: Mode;
   walkMin: number;
   maxStations: number;
-  url: string;    // gbfs.json autodiscovery
+  /** The gbfs.json autodiscovery URL. */
+  url: string;
   unit: Unit;
 }
 
@@ -44,7 +50,8 @@ export interface FeedIO {
 
 /** What a feed contributes to discovery, before the walk filter. */
 export interface FeedCandidates<D = unknown> {
-  data: D;                 // the adapter's own static data, handed back to its polls
+  /** The adapter's own static data, handed back to its polls. */
+  data: D;
   stops?: Stop[];
   stations?: Station[];
   routes?: RouteInfo[];
@@ -57,7 +64,8 @@ export interface FeedScope<D = unknown> {
   data: D;
   stops: Stop[];
   stations: Station[];
-  routes: RouteInfo[];     // discovered plus learned from responses
+  /** Discovered plus learned from responses. */
+  routes: RouteInfo[];
 }
 
 /** A poll's result; each field present replaces that feed's previous value. */

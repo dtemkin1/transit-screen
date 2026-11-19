@@ -26,8 +26,10 @@ const OUT_OF_SERVICE = /\bout of service\b|^OOS$/i;
 export interface GtfsOptions {
   source: Source;
   mode: Mode;
-  color: string;                    // for routes without route_color
-  headsign?: 'trip' | 'last-stop';  // 'last-stop' ignores trip_headsign
+  /** For routes without route_color. */
+  color: string;
+  /** 'last-stop' ignores trip_headsign. */
+  headsign?: 'trip' | 'last-stop';
 }
 
 function toSec(hms: string): number {

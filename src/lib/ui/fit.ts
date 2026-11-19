@@ -1,15 +1,17 @@
 import { isIndecent } from '../util/decency';
 
-/**
- * A run of text with an optional class, so one line can mix weights ("Spring Hill" + " via Union Sq").
- * `keep` text is never split ("2 min walk"): the other text is cut first, and it goes only as a whole.
- */
-export interface Segment { text: string; cls?: string; keep?: boolean }
+/** A run of text with an optional class, so one line can mix weights ("Spring Hill" + " via Union Sq"). */
+export interface Segment {
+  text: string;
+  cls?: string;
+  /** Never split ("2 min walk"): the other text is cut first, and this goes only as a whole. */
+  keep?: boolean;
+}
 
 const ELLIPSIS = '…';
-// Left dangling at the end of a cut ("Union Sq &…", "Tech Shuttle to…"), these read as noise.
+/** Left dangling at the end of a cut ("Union Sq &…", "Tech Shuttle to…"), these read as noise. */
 const TRAILING = /(?:[\s,;:&@/\-–.]+|\s+(?:to|via|at|opp|and|of))+$/i;
-// Each word with the space before it; the last also keeps any space after it (". " then "Vassar").
+/** Each word with the space before it; the last also keeps any space after it (". " then "Vassar"). */
 const WORDS = /\s*\S+(?:\s+$)?/g;
 
 const textOf = (segs: Segment[]) => segs.map((s) => s.text).join('');
@@ -17,7 +19,7 @@ const wordsOf = (s: Segment, keepWhole: boolean) => (s.keep && !keepWhole ? [s.t
 
 /**
  * Ends `out` with "…", dropping a dangling "&" or "to" from the cut text (never from `keep` text).
- * With no cut text left to end, adds a bare "…" only if `placeholder`.
+ * @param placeholder Whether to add a bare "…" when no cut text is left to end.
  */
 function ellipsis(out: Segment[], placeholder: boolean): Segment[] {
   while (out.length > 0 && !out[out.length - 1].keep) {
@@ -34,8 +36,9 @@ function ellipsis(out: Segment[], placeholder: boolean): Segment[] {
 }
 
 /**
- * The first `n` words, then "…". With `keepWhole`, `keep` segments are always shown in full and only
- * the other words count; without it, each `keep` segment counts as one word.
+ * The first `n` words, then "…".
+ * @param keepWhole Show `keep` segments in full and count only the other words; when false, each
+ *   `keep` segment counts as one word.
  */
 function cut(segs: Segment[], n: number, keepWhole: boolean): Segment[] {
   const out: Segment[] = [];
@@ -103,9 +106,8 @@ export function fitOptions(options: Segment[][], fits: (segs: Segment[]) => bool
 }
 
 /**
- * Svelte action: renders text into the element, cut at a word boundary when it overflows (one line,
- * or the lines a line-clamp allows). Pass segments, or a list of options in order of preference.
- * When cut, the full text stays available to screen readers and as a tooltip. The element must clip.
+ * Svelte action: renders segments (or options, preferred first) cut at a word to fit the clipping element,
+ * on one line or a line-clamp's lines. Cut text stays whole for screen readers and in a tooltip.
  */
 export function fit(node: HTMLElement, text: Segment[] | Segment[][]) {
   let options = toOptions(text);

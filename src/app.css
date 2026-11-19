@@ -13,9 +13,9 @@
   --band-icon: #e0fd65; /* SA+P lime: reads on the burgundy band whatever today's frame color is */
   --rule: #d2d2d2;
   --rail-w: 0.6vmin;
-  /* Accent: building name, messages and the legend. */
   --font-sans: 'neue-haas-unica', 'System', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --font-display: 'neue-haas-grotesk-display', 'System', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  /* Building name, messages and the legend. */
   --font-accent: 'freight-text-pro', 'Rhymes Text', 'Rhymes', Georgia, 'Times New Roman', serif;
   /* Adobe serves Neue Haas Grotesk Display 55 Roman at 500 and 65 Medium at 600. */
   --display-medium: 600;
@@ -38,7 +38,7 @@
   font-size: clamp(16px, min(1.5vmin + 0.95rem, 100vh / 32), 64px);
 }
 
-/* MIT identity (brand.mit.edu): Neue Haas Grotesk (Display above 20 px, Text below, Arial fallback); black, white, red accents. */
+/* MIT identity (brand.mit.edu): Neue Haas Grotesk, Display above 20 px and Text below; black, white, red. */
 :root[data-brand='mit'] {
   --font-sans: 'neue-haas-grotesk-text', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --font-display: 'neue-haas-grotesk-display', 'Helvetica Neue', Helvetica, Arial, sans-serif;

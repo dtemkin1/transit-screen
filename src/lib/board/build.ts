@@ -11,9 +11,12 @@ export interface BoardInput {
   feeds: readonly { id: Source; name: string }[];
   live: Record<Source, Departure[]>; scheduled: Record<Source, Departure[]>;
   health: Record<Source, Health>; alerts: Alert[];
-  stations: Station[];       // discovered stations with their latest counts
-  hide: string[];            // route or alert ids, bare or `${source}:${id}`
-  extraRoutes: RouteInfo[];  // routes learned from realtime/schedule responses
+  /** Discovered stations with their latest counts. */
+  stations: Station[];
+  /** Route or alert ids, bare or `${source}:${id}`. */
+  hide: string[];
+  /** Routes learned from realtime and schedule responses. */
+  extraRoutes: RouteInfo[];
 }
 
 const MAX_TIMES = 3;
@@ -35,16 +38,18 @@ function groupBy<T>(items: T[], key: (t: T) => string): Map<string, T[]> {
   return out;
 }
 
-// One vehicle shown twice within a minute (same trip, same vehicle, or an MBTA "ADDED" copy) is merged;
-// two different vehicles close together both show.
 const DUPLICATE_WINDOW_MS = 60_000;
 const same = (x?: string, y?: string) => x !== undefined && x === y;
+/**
+ * One vehicle shown twice within a minute (same trip, same vehicle, or an MBTA "ADDED" copy) is
+ * merged; two different vehicles close together both show.
+ */
 const isDuplicate = (a: Placed, b: Placed) =>
   b.d.departureTime - a.d.departureTime < DUPLICATE_WINDOW_MS &&
   (same(a.d.tripId, b.d.tripId) || same(a.d.vehicleId, b.d.vehicleId) ||
     [a.d.tripId, b.d.tripId].some((id) => id?.startsWith('ADDED-')));
 
-// Up to 3 reachable, de-duplicated times, plus the departure behind the first (it labels the row).
+/** Up to 3 reachable, de-duplicated times, plus the departure behind the first (it labels the row). */
 function timeCells(placed: Placed[], nowMs: number): { cells: TimeCell[]; lead?: Placed } {
   const shown: Placed[] = [];
   for (const p of [...placed].sort((a, b) => a.d.departureTime - b.d.departureTime)) {
@@ -69,7 +74,7 @@ const NOTE: Partial<Record<PanelStatus, string>> = {
   'unavailable': 'live data unavailable',
 };
 
-// One note per agency that isn't fully live; shared panels name the agency so live rows aren't doubted.
+/** One note per agency that isn't fully live; shared panels name the agency so live rows aren't doubted. */
 function panelNotes(sources: Source[], status: Record<Source, PanelStatus>, names: Map<Source, string>): string[] {
   return sources.flatMap((s) => {
     const note = NOTE[status[s]];
@@ -107,14 +112,16 @@ export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: A
   const placeAll = (ds: Departure[]) => ds.map(place).filter((p): p is Placed => p !== null);
   const mergeKey = (p: Placed) => `${stopKey(p.stop)}|${p.d.directionKey}`;
 
-  // Live/scheduled merge per (stop, direction).
+  // Per stop and direction, live departures replace scheduled ones.
   const shown: Placed[] = [];
   for (const s of sources) {
     const liveUsable = status[s] === 'ok' || status[s] === 'delayed';
     const liveRaw = liveUsable ? input.live[s] : [];
     const live = groupBy(placeAll(liveRaw), mergeKey);
-    // A scheduled departure whose trip live data has at the same stop (in or out of
-    // the window, however late or early) is a stale copy of that trip.
+    /**
+     * Trip and stop, to drop a scheduled departure whose trip live data has at the same stop
+     * (in or out of the window, however late or early): it's a stale copy of that trip.
+     */
     const tripAtStop = (d: Departure) => {
       const stop = stopOf(d);
       return d.tripId !== undefined && stop ? `${d.tripId}|${stopKey(stop)}` : null;
@@ -137,7 +144,7 @@ export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: A
     return { key, route: lead.route, headsign: lead.d.headsign, times, ...extra };
   };
 
-  // One group per station, rows per route + headsign.
+  /** One group per station, with a row per route and headsign. */
   const byStation = (placed: Placed[]): BoardGroup[] => {
     const groups: BoardGroup[] = [];
     for (const station of [...new Set(placed.map((p) => p.stop))].sort(byWalk)) {

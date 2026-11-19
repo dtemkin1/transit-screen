@@ -8,9 +8,12 @@ import { fetchBytes, fetchJson, workerUrl } from './worker-client';
 export interface Discovered {
   stops: Stop[];
   stations: Station[];
-  routes: Map<string, RouteInfo>;           // `${source}:${routeId}`
-  serving: Map<string, Set<string>>;        // `${source}:${directionKey}` → `${source}:${stopId}` it boards at
-  feeds: Record<Source, unknown>;           // adapter data of each feed that discovered
+  /** Keyed `${source}:${routeId}`. */
+  routes: Map<string, RouteInfo>;
+  /** `${source}:${directionKey}` → each `${source}:${stopId}` it boards at. */
+  serving: Map<string, Set<string>>;
+  /** The adapter data of each feed that discovered. */
+  feeds: Record<Source, unknown>;
 }
 
 export interface DiscoveryDeps {

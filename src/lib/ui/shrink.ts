@@ -1,6 +1,10 @@
 /**
- * The font size that fits one line `naturalPx` wide (at `fullPx`) into `availablePx`: the full size
- * if it fits, else scaled down to fit, but never below `minPx`; at that floor the text wraps instead.
+ * The font size that fits one line of text: the full size if it fits, else scaled down to fit, but
+ * never below the floor, where the text wraps instead.
+ * @param naturalPx The line's width at `fullPx`.
+ * @param availablePx The width it has to fit in.
+ * @param fullPx The size it's set at.
+ * @param minPx The floor: the smallest size before it wraps.
  */
 export function fitSize(naturalPx: number, availablePx: number, fullPx: number, minPx: number): { px: number; wrap: boolean } {
   if (naturalPx <= availablePx) return { px: fullPx, wrap: false };

@@ -1,7 +1,7 @@
 import type { RouteInfo } from '../types';
 
 const HEX = /^#[0-9a-f]{6}$/i;
-// The forms MBTA uses on its own signs.
+/** The forms MBTA uses on its own signs. */
 const ABBREVIATIONS: [RegExp, string][] = [
   [/\bMassachusetts\b/g, 'Mass'],
   [/\bAvenue\b/g, 'Ave'],
@@ -45,8 +45,10 @@ export function contrastRatio(a: string, b: string): number {
 /** Badge text is large and bold, so 3:1 (WCAG large text) is the floor. */
 const BADGE_MIN_CONTRAST = 3;
 
-// Route marker: a feed's fixed badge, else short names as is and long ones as initials; text color
-// falls back to black or white when the feed's doesn't read (some Passio routes have none).
+/**
+ * Route marker: a feed's fixed badge, else short names as is and long ones as initials. The text
+ * color falls back to black or white when the feed's doesn't read (some Passio routes have none).
+ */
 export function routeBadge(r: RouteInfo): Badge {
   const name = r.shortName || r.longName;
   const text = r.badge ?? (name.length <= 4
