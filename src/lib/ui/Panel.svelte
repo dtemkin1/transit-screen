@@ -1,6 +1,7 @@
 <script lang="ts">
   import { trimPanel } from '../board/trim';
   import type { BoardPanel } from '../types';
+  import { fit } from './fit';
   import Row from './Row.svelte';
   import StationList from './StationList.svelte';
 
@@ -53,7 +54,7 @@
       {#each shown.groups as group, gi (gi)}
         {#if group.header}
           <div class="station">
-            <span class="station-name">{group.header.name}</span>
+            <span class="station-name" use:fit={[{ text: group.header.name }]}></span>
             <span class="walk">{group.header.walkEstimated ? '~' : ''}{group.header.walkMin} min walk</span>
           </div>
         {/if}
@@ -126,7 +127,6 @@
   }
   .station-name {
     overflow: hidden;
-    text-overflow: ellipsis;
     font-weight: 700;
     color: var(--text);
   }

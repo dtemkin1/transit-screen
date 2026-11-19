@@ -29,6 +29,15 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Type follows the shorter side, so in a squarish window each layout also caps it by its tight side:
+   two columns need about 36 type-widths across, and four stacked panels about 32 lines of height. */
+:root[data-layout='landscape'] {
+  font-size: clamp(16px, min(1.5vmin + 0.95rem, 100vw / 36), 64px);
+}
+:root[data-layout='portrait'] {
+  font-size: clamp(16px, min(1.5vmin + 0.95rem, 100vh / 32), 64px);
+}
+
 /* MIT identity (brand.mit.edu): Neue Haas Grotesk (Display above 20 px, Text below, Arial fallback); black, white, red accents. */
 :root[data-brand='mit'] {
   --font-sans: 'neue-haas-grotesk-text', 'Helvetica Neue', Helvetica, Arial, sans-serif;
@@ -65,4 +74,14 @@ html[data-idle] {
 #app {
   height: 100%;
   padding: var(--inset, 0);
+}
+
+/* Read by screen readers, not shown: the full text behind a cut, the header's heading. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }

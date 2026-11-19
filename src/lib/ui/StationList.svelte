@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fit } from './fit';
   import { abbreviate, countNoun, plural } from './format';
   import type { Station } from '../types';
 
@@ -11,8 +12,8 @@
 {#each stations as s (`${s.source}:${s.id}`)}
   <div class="row">
     <div class="where">
-      <span class="name">{abbreviate(s.name)}</span>
-      <span class="sub">{walk(s)}{electric(s)}</span>
+      <span class="name" use:fit={[{ text: abbreviate(s.name) }]}></span>
+      <span class="sub" use:fit={[{ text: walk(s) + electric(s) }]}></span>
     </div>
     <div class="counts">
       {#if s.open === false}
@@ -49,7 +50,6 @@
   .sub {
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
   }
   .name {
     font-weight: 700;

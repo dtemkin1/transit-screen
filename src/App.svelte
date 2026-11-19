@@ -76,6 +76,8 @@
       : undefined,
   );
 
+  const EMPTY_SHARE = 1; // room for the title and a note or two
+
   // Landscape: each panel in its PANELS column. Portrait: one column in PANELS order.
   const columns = $derived.by(() => {
     const cols = new Map<number, { panel: BoardPanel; share: number }[]>();
@@ -83,7 +85,9 @@
       const panel = board?.panels.find((p) => p.id === def.id);
       if (!panel) continue;
       const c = landscape ? def.column : 0;
-      cols.set(c, [...(cols.get(c) ?? []), { panel, share: def.share }]);
+      // A panel with nothing to list (only "live data unavailable") gives its room to the others.
+      const empty = !panel.stations && panel.groups.every((g) => g.rows.length === 0);
+      cols.set(c, [...(cols.get(c) ?? []), { panel, share: empty ? EMPTY_SHARE : def.share }]);
     }
     return [...cols.entries()].sort(([a], [b]) => a - b).map(([, col]) => col);
   });

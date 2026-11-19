@@ -24,6 +24,8 @@ Inside `src/`, data flows top to bottom through these folders. Each test file si
 | `lib/util/` | Generic helpers: `geo.ts` (distances) and `time.ts` (Boston service-day time). |
 | `test/fixtures/` | Recorded API responses used by the tests. |
 
+Outside `src/`, `scripts/` holds the feed-name check (`npm run scan-names`), which the deploy workflow runs.
+
 ## Configuration
 
 Settings live in `src/config.ts` (`defaultConfig`). The board can override some of them from the URL:
@@ -41,7 +43,7 @@ Other `Config` fields are set in code only (`src/config.ts`):
 - `location`, `building`, `name`: default to W41, Metropolitan Warehouse, `{ lat: 42.35982, lon: -71.0961 }`. URL overrides apply, see above.
 - `workerUrl`: from the `VITE_WORKER_URL` build variable (default `http://localhost:8787`).
 - `feeds`: the agencies on the board, each with its walk limit (MBTA subway 15 min and bus 7, MIT shuttles 5, EZRide 6, Bluebikes 8 with the nearest 4 docks). See [Adding a feed](#adding-a-feed).
-- `pin`, `hide`: stop or route IDs to pin or hide. `pin` only keeps a stop that is already inside the mode's straight-line candidate circle (`maxWalkMin` x 60 x 1.3 m); it cannot add a farther stop.
+- `pin`, `hide`: stop, route or alert IDs to pin or hide (routes and alerts also as `source:id`, e.g. `mbta:12345`). Hiding an alert is the way to remove one the wording filter misses. `pin` only keeps a stop that is already inside the mode's straight-line candidate circle (`maxWalkMin` x 60 x 1.3 m); it cannot add a farther stop.
 - `walkSpeedMps` (1.3) and `walkDetourFactor` (1.3): used only for the straight-line walk estimate.
 
 ### What the board shows
@@ -50,17 +52,32 @@ Other `Config` fields are set in code only (`src/config.ts`):
 - Times in italics come from the schedule (live data for that service is missing). The rest are live predictions.
 - MBTA status messages ("Stopped 5 stops away") appear in the accent color (SA+P burgundy, or MIT Red) under the destination.
 - Long names are shortened the way MBTA signs shorten them (Massachusetts → Mass, Avenue → Ave, Square → Sq, and → &; the list is in `src/lib/ui/format.ts`). A destination's "via …" part is set lighter, so when a row is cut it loses the route description, never the destination.
+- Text that doesn't fit is cut between whole words, never inside one, with "…" and no dangling "&", "to" or "via" (`src/lib/ui/fit.ts`). A walk time ("2 min walk") is never split: the stop name shortens first. A shuttle row that can't fit its route name and destination shows the destination alone, since the badge names the route. Screen readers still get the full text.
+- Alerts are screened for profanity, since people type them. A flagged alert isn't shown; see [Wording filter](#wording-filter).
 - MIT shuttle rows lead with the route name ("Tech Shuttle to Kendall Square T"), since riders know shuttles by route. Routes Passio marks "out of service" are never shown.
 - When one agency's data isn't fully live, the panel title says which ("EZRide: data delayed"), so live rows from the other agency in the same panel aren't called into question.
 - All EZRide routes are labelled `EZ` in the agency color (the feed's `badge` in `src/config.ts`), with the trip's final stop as the destination.
 
 ### Look
 
-The board follows the MIT School of Architecture and Planning identity as used on [sap.mit.edu](https://sap.mit.edu): departures in black on light gray, inside an L-shaped frame (header band and right edge) in one SA+P color. The rails between panels use the dark color SA+P pairs with it (burgundy, olive, or teal), since the light frame colors are too pale to separate panels on gray. Like the site, where each page has its own color, the frame color changes every day at the 04:00 reload. Pin one with `palette` (`apricot` is the color of the site's Met Warehouse page). The `mit` palette follows MIT's identity ([brand.mit.edu/color](https://brand.mit.edu/color)) instead: a black frame and rails, the building number in MIT Bright Red, and MIT Red for status text and the alert band. Colors are in `src/lib/ui/palette.ts`; the rest of the styling is in `src/app.css`.
+The board follows the MIT School of Architecture and Planning identity as used on [sap.mit.edu](https://sap.mit.edu): departures in black on light gray, inside an L-shaped frame (header band and right edge) in one SA+P color. The rails between panels use the dark color SA+P pairs with it (burgundy, olive, or teal), since the light frame colors are too pale to separate panels on gray.
+
+Like the site, where each page has its own color, the frame color changes every day at the 04:00 reload. Pin one with `palette` (`apricot` is the color of the site's Met Warehouse page).
+
+The `mit` palette follows MIT's identity ([brand.mit.edu/color](https://brand.mit.edu/color)) instead: a black frame and rails, the building number in MIT Bright Red, and MIT Red for status text and the alert band.
+
+Colors are in `src/lib/ui/palette.ts`; the rest of the styling is in `src/app.css`.
 
 #### Checking the design
 
-On the dev server (`npm run dev`), add `?demo` to the URL to see sample data with every state the board can show: an alert, MBTA status text, a delayed feed, a schedule fallback, long names, and a shuttle badge color with no text color. `?demo=outage` shows the "Live data unavailable" panels, `?demo=loading` the startup screen, and `?demo=failing` the message shown when the transit data service can't be reached. Combine with `palette` to check each color. The header says "Sample data" whenever demo mode is on, and demo mode is not included in production builds.
+On the dev server (`npm run dev`), add one of these to the URL to see sample data:
+
+- `?demo`: every state the board can show (an alert, MBTA status text, a delayed feed, a schedule fallback, long names, a shuttle badge color with no text color).
+- `?demo=outage`: the "Live data unavailable" panels.
+- `?demo=loading`: the startup screen.
+- `?demo=failing`: the message shown when the transit data service can't be reached.
+
+Combine with `palette` to check each color. The header says "Sample data" whenever demo mode is on, and demo mode is not included in production builds.
 
 The mouse pointer hides after 3 seconds without movement, so it stays out of the way on the TV but is there when someone uses a mouse.
 
@@ -76,15 +93,23 @@ SA+P's own typefaces aren't available to license here, so the board uses the clo
 2. Add the domains the board is served from: `localhost`, `dtemkin1.github.io`, and `web.mit.edu`.
 3. Put the project ID in `VITE_ADOBE_FONTS_KIT`: in `.env.local` for local builds, and as the repository variable `ADOBE_FONTS_KIT` for the GitHub Pages deploy.
 
-The typefaces follow the palette: the SA+P colors use the SA+P set above, and `mit` uses MIT's (`:root[data-brand='mit']` in `src/app.css`). A family missing from the kit falls back to Helvetica/Arial. The kit's CSS is fetched from `use.typekit.net` when the page loads. If it can't be reached, the fallback fonts are used. The stacks are in `src/app.css`; if Adobe names a family differently in your kit, change the name there.
+The typefaces follow the palette: the SA+P colors use the SA+P set above, and `mit` uses MIT's (`:root[data-brand='mit']` in `src/app.css`).
+
+The kit's CSS is fetched from `use.typekit.net` when the page loads. If it can't be reached, or a family is missing from the kit, the board falls back to Helvetica/Arial. The stacks are in `src/app.css`; if Adobe names a family differently in your kit, change the name there.
 
 ### Adding a feed
 
 Every agency is one entry in `FEEDS` in `src/config.ts`. The board, the panel notes and the polling all read that list, so a new feed of a kind the board already supports needs no other app code:
 
-- **`gtfs`**: any GTFS static zip, with optional GTFS-RT in JSON form (Passio serves this; protobuf-only feeds aren't supported yet). Set `mode` to the panel it belongs in (`bus` or `shuttle`), `walkMin`, a fallback route `color`, and optionally `realtime`, `badge` (one label for every route), `named` (rows lead with the route name) and `headsign: 'last-stop'` (when `trip_headsign` isn't a destination). Without `realtime`, the feed shows its schedule in italics with no "live data unavailable" note. The Worker proxies the zip, so also add its URL to `GTFS_STATIC` in `worker/src/index.ts` under the same `id`, and deploy the Worker again.
-- **`gbfs`**: any GBFS system with docks, from its `gbfs.json` autodiscovery URL. `unit` sets the words ("bike", "e-bike").
+- **`gtfs`**: any GTFS static zip, with optional GTFS-RT in JSON form (Passio serves this; protobuf-only feeds aren't supported yet).
+  - Required: `mode` (the panel it belongs in, `bus` or `shuttle`), `walkMin`, and a fallback route `color`.
+  - Optional: `realtime`, `badge` (one label for every route), `named` (rows lead with the route name), and `headsign: 'last-stop'` (when `trip_headsign` isn't a destination).
+  - Without `realtime`, the feed shows its schedule in italics with no "live data unavailable" note.
+  - The Worker proxies the zip, so also add its URL to `GTFS_STATIC` in `worker/src/sources.ts` under the same `id`, and deploy the Worker again.
+- **`gbfs`**: any GBFS system with docks, from its `gbfs.json` autodiscovery URL. `unit` sets the words ("bike", "e-bike"). Also add the URL to `GBFS_DISCOVERY` in `worker/src/sources.ts`, so the name check covers it.
 - **`mbta`**: the MBTA V3 API (one entry only).
+
+Then run `npm run scan-names` and add anything under `flagged` to `LOCAL_NAMES` (see [Wording filter](#wording-filter)).
 
 For example, a Passio shuttle with live data is:
 
@@ -95,17 +120,52 @@ For example, a Passio shuttle with live data is:
 },
 ```
 
-with `myshuttle: passio('<passio agency>')` in the Worker's `GTFS_STATIC`. If it shares the Shuttles panel with the MIT shuttles, the panel's title becomes "Shuttles" and each note names its agency.
+with `myshuttle: passio('<passio agency>')` in `GTFS_STATIC` (`worker/src/sources.ts`). If it shares the Shuttles panel with the MIT shuttles, the panel's title becomes "Shuttles" and each note names its agency.
 
-A different kind of source (a car-share API, say) needs an adapter: a folder in `src/lib/feeds/` (like `gbfs/`: an `adapter.ts` beside the parsing code) whose adapter implements `Adapter` from `src/lib/feeds/types.ts` (what it finds near the board, and what it polls), registered in `src/lib/feeds/index.ts`, plus its config type. Stations (`Station` in `src/lib/types.ts`) already carry their own `unit`, so a lot of cars renders the same way as a Bluebikes dock. Panels (title, height share, column, row layout) are in `src/lib/board/panels.ts`; a new kind of vehicle that needs its own panel goes there and in `Mode`.
+A different kind of source (a car-share API, say) needs an adapter:
+
+1. Add a folder in `src/lib/feeds/` (like `gbfs/`), with an `adapter.ts` beside the parsing code. The adapter implements `Adapter` from `src/lib/feeds/types.ts`: what it finds near the board, and what it polls.
+2. Register it in `src/lib/feeds/index.ts`, and add its config type in `src/lib/feeds/types.ts`.
+3. If it needs its own panel, add one in `src/lib/board/panels.ts` (title, height share, column, row layout) and in `Mode`.
+
+Stations (`Station` in `src/lib/types.ts`) already carry their own `unit`, so a lot of cars renders the same way as a Bluebikes dock.
 
 ### Another building
 
-For any MIT building, `?building=32` is enough. At startup the board looks the number up on MIT's campus map ([whereis.mit.edu](https://whereis.mit.edu)), through the Worker's `/building/{number}` route, which caches the answer for 30 days. That gives the walking origin and the building's name for the header ("Ray and Maria Stata Center"); buildings the map has no name for show only the number. `&name=` overrides the name, and `&lat=...&lon=...` sets the location yourself (no lookup), for a spot the map doesn't have. A number the map doesn't know shows a message saying so instead of departures.
+For any MIT building, `?building=32` is enough. At startup the board looks the number up on MIT's campus map ([whereis.mit.edu](https://whereis.mit.edu)), through the Worker's `/building/{number}` route, which caches the answer for 30 days. That gives the walking origin and the building's name for the header ("Ray and Maria Stata Center"); buildings the map has no name for show only the number.
+
+- `&name=` overrides the name.
+- `&lat=...&lon=...` sets the location yourself, with no lookup, for a spot the map doesn't have.
+- A number the map doesn't know shows a message saying so instead of departures.
 
 Since SA+P's colors belong to SA+P, another `building` switches to the `mit` palette: MIT's black and red, and its typeface, Neue Haas Grotesk (see Fonts); add `&palette=` to choose otherwise, for example for an SA+P space in another building.
 
 The default board (W41) keeps its location in `src/config.ts`, so it needs no lookup to start.
+
+### Wording filter
+
+Alerts and names are typed by people, so the board screens what it shows (`src/lib/util/decency.ts`, using the [obscenity](https://github.com/jo3-l/obscenity) word list, which also catches look-alike spellings such as "sh1t"):
+
+- An alert whose text is flagged isn't shown.
+- Official names (stops, routes, docks, buildings) are always shown, since a flag there is a false positive.
+- A cut never ends where the shortened text would be flagged when the full name isn't ("N Harvard St @ Hooker…" becomes "N Harvard St…").
+- Real street names the word list would flag (Cummins Hwy, Dickson St, …) are allowlisted in `LOCAL_NAMES`.
+
+No filter is complete: `hide` removes a specific alert by ID.
+
+Two reports show where the filter trips on real text:
+
+- **Hidden alerts.** The board reports each one, once per page load, to the Worker's `/report` route, which logs it. See them in the Cloudflare dashboard under the Worker's **Logs** (on through `[observability]` in `worker/wrangler.toml`), or live with `npx wrangler tail` from `worker/`.
+- **Feed names.** Every deploy checks every name in every feed and publishes the result beside the board as `names.json` (for example `https://dtemkin1.github.io/transit-screen/names.json`). The deploy run's summary says whether it's all clear, with a warning for each problem; the deploy goes ahead either way. Run it locally with `npm run scan-names`.
+  - It runs in the deploy rather than the Worker because it takes about a second of CPU, past the Workers free plan's 10 ms limit.
+
+`names.json` fields: `feeds` (names checked per feed), `flagged` (names the filter trips on), `allowlisted` (names that pass only because of `LOCAL_NAMES`) and `failed` (feeds it couldn't read). Empty `flagged` and `failed` mean all clear.
+
+When something is flagged:
+
+1. If it's a real street or place name, add its flagged part, in lower case, to `LOCAL_NAMES` in `src/lib/util/decency.ts`, and deploy.
+2. If it's real profanity in an alert, nothing is needed: the board already hides it.
+3. If a bad alert got through, add its ID to `hide`.
 
 ### Walking times
 

@@ -506,4 +506,10 @@ describe('buildBoard: alerts', () => {
     const live = withLive([], { mit: [dep('mit', 'shuttle', 'tech', 'm1')({ min: 4 })] });
     expect(buildBoard(input({ live, alerts })).alerts.map((a) => a.id)).toEqual(['mit-wide']);
   });
+
+  it('hide removes an alert by id, bare or with its source', () => {
+    const alerts = [alert('a1', 'mbta', ['Red']), alert('a2', 'mbta', ['Red']), alert('a3', 'mbta', ['Red'])];
+    const live = withLive([red('70071', { min: 12 })]);
+    expect(buildBoard(input({ live, alerts, hide: ['a1', 'mbta:a3'] })).alerts.map((a) => a.id)).toEqual(['a2']);
+  });
 });

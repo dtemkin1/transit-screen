@@ -4,9 +4,10 @@ import type { Health } from '../board/health';
 import { defaultDiscoveryDeps, discover, type Discovered } from './discovery';
 import { adapterFor } from '../feeds';
 import type { FeedConfig, FeedIO, FeedScope, FeedUpdate } from '../feeds/types';
+import { isIndecent } from '../util/decency';
 import { msUntilNext } from '../util/time';
 import type { Alert, Departure, RouteInfo, Source, Station } from '../types';
-import { fetchBytes, fetchJson } from './worker-client';
+import { fetchBytes, fetchJson, reportHiddenAlert } from './worker-client';
 
 export interface PollerDeps {
   now(): number;
@@ -17,6 +18,7 @@ export interface PollerDeps {
   fetchJson: typeof fetchJson;
   lookupBuilding(number: string): Promise<Building | null>;
   discover(cfg: Config): Promise<Discovered>;
+  reportHiddenAlert(alert: Alert): void;
 }
 
 export interface PollerState {
@@ -57,6 +59,7 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
     fetchJson,
     lookupBuilding: (number) => lookupBuilding(cfg, number, fetchJson),
     discover: (c) => discover(c, defaultDiscoveryDeps(c)),
+    reportHiddenAlert: (a) => reportHiddenAlert(cfg, a),
     ...overrides,
   };
   const io: FeedIO = { cfg, fetchJson: deps.fetchJson, fetchBytes };
@@ -114,6 +117,7 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
 
   // Routes and alerts are kept per poll; state holds their deduped union.
   const routesByPoll = new Map<string, RouteInfo[]>();
+  const reported = new Set<string>();  // hidden alerts already reported
   const alertsByPoll = new Map<string, Alert[]>();
 
   function apply(feed: FeedConfig, poll: string, u: FeedUpdate) {
@@ -124,7 +128,18 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
       state.extraRoutes = dedupeBy([...routesByPoll.values()].flat(), keyOf);
     }
     if (u.alerts) {
-      alertsByPoll.set(poll, u.alerts);
+      // Alerts are typed by people (Passio's by dispatchers), so screen them; the board can do without one.
+      const clean = u.alerts.filter((a) => {
+        if (!isIndecent(a.header)) return true;
+        // Once per alert per page load: the poll repeats every 2 min.
+        if (!reported.has(keyOf(a))) {
+          reported.add(keyOf(a));
+          console.warn(`poller: hid ${feed.name} alert ${a.id} for its wording`);
+          deps.reportHiddenAlert(a);
+        }
+        return false;
+      });
+      alertsByPoll.set(poll, clean);
       state.alerts = dedupeBy([...alertsByPoll.values()].flat(), keyOf);
     }
     if (u.stations) {

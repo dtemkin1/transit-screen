@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { handle, type Env } from '../src/index'
 
 class FakeCache {
@@ -115,6 +115,34 @@ describe('worker', () => {
       expect(calls).toHaveLength(0)
     },
   )
+
+  it('report logs a hidden alert and answers 204, without fetching anything', async () => {
+    const log = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { calls, run } = setup(() => new Response('x'))
+    const body = { kind: 'hidden-alert', source: 'mit', id: 'a7', header: 'Detour via Cummins Hwy' }
+    const res = await run(new Request('https://w.test/report', {
+      method: 'POST', headers: { Origin: 'https://dtemkin1.github.io' }, body: JSON.stringify(body),
+    }))
+    expect(res.status).toBe(204)
+    expect(JSON.parse(log.mock.calls[0][0] as string)).toEqual({
+      event: 'hidden-alert', source: 'mit', id: 'a7', header: 'Detour via Cummins Hwy', origin: 'https://dtemkin1.github.io',
+    })
+    expect(calls).toHaveLength(0)
+    log.mockRestore()
+  })
+
+  it('report rejects anything else without logging', async () => {
+    const log = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { run } = setup(() => new Response('x'))
+    const post = (body: string) => run(new Request('https://w.test/report', { method: 'POST', body }))
+    expect((await run(new Request('https://w.test/report'))).status).toBe(405)
+    expect((await post('not json')).status).toBe(400)
+    expect((await post(JSON.stringify({ kind: 'other', source: 'mit', id: '1', header: 'x' }))).status).toBe(400)
+    expect((await post(JSON.stringify({ kind: 'hidden-alert', source: 'mit', id: 1, header: 'x' }))).status).toBe(400)
+    expect((await post(JSON.stringify({ kind: 'hidden-alert', source: 'mit', id: '1', header: 'x'.repeat(5000) }))).status).toBe(413)
+    expect(log).not.toHaveBeenCalled()
+    log.mockRestore()
+  })
 
   it('rejects a GTFS feed id not in the table', async () => {
     const { calls, run } = setup(() => new Response('x'))

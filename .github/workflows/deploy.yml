@@ -3,6 +3,9 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch:
 
 permissions:
   pages: write
@@ -49,6 +52,9 @@ jobs:
         env:
           VITE_WORKER_URL: ${{ vars.WORKER_URL }}
           VITE_ADOBE_FONTS_KIT: ${{ vars.ADOBE_FONTS_KIT }}
+
+      - name: Check feed names
+        run: npm run --silent scan-names > dist/names.json
 
       - uses: actions/configure-pages@v5
 

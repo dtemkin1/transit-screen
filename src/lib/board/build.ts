@@ -12,7 +12,7 @@ export interface BoardInput {
   live: Record<Source, Departure[]>; scheduled: Record<Source, Departure[]>;
   health: Record<Source, Health>; alerts: Alert[];
   stations: Station[];       // discovered stations with their latest counts
-  hide: string[];            // route ids, bare or `${source}:${routeId}`
+  hide: string[];            // route or alert ids, bare or `${source}:${id}`
   extraRoutes: RouteInfo[];  // routes learned from realtime/schedule responses
 }
 
@@ -206,10 +206,10 @@ export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: A
     if (groups.length > 0 || failing) panels.push(panel(groups));
   }
 
-  return { panels, alerts: relevantAlerts(input.alerts, shownStops, shownRoutes) };
+  return { panels, alerts: relevantAlerts(input.alerts, shownStops, shownRoutes, hide) };
 }
 
-function relevantAlerts(alerts: Alert[], stops: Set<Stop>, routes: Set<string>): Alert[] {
+function relevantAlerts(alerts: Alert[], stops: Set<Stop>, routes: Set<string>, hide: string[]): Alert[] {
   const stopIds = new Set<string>();
   const sources = new Set<Source>();
   for (const s of stops) {
@@ -224,7 +224,7 @@ function relevantAlerts(alerts: Alert[], stops: Set<Stop>, routes: Set<string>):
       a.stopIds.some((s) => stopIds.has(`${a.source}:${s}`)) ||
       (a.agencyWide === true && sources.has(a.source));
     const key = `${a.source}:${a.id}`;
-    if (!relevant || seen.has(key)) return false;
+    if (!relevant || seen.has(key) || hide.includes(a.id) || hide.includes(key)) return false;
     seen.add(key);
     return true;
   });

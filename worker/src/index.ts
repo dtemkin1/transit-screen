@@ -1,3 +1,5 @@
+import { GTFS_STATIC } from './sources'
+
 export interface Env {
   /** Unset in local dev without a key; MBTA then serves keyless (lower rate limit). */
   MBTA_API_KEY?: string
@@ -20,12 +22,6 @@ const MBTA_TTL: Record<string, number> = {
   schedules: 300,
   stops: 86400,
   routes: 86400,
-}
-const passio = (agency: string) => `https://passio3.com/${agency}/passioTransit/gtfs/google_transit.zip`
-// Static GTFS zips, keyed by the board's feed id (config.ts FEEDS). Only these are proxied.
-const GTFS_STATIC: Record<string, string> = {
-  mit: passio('mit'),
-  ezride: passio('charlesriver'),
 }
 const GTFS_TTL = 6 * 3600
 const WALK_TTL = 24 * 3600
@@ -113,6 +109,28 @@ interface WhereisHit {
   name?: string
   lat_wgs84?: number
   long_wgs84?: number
+}
+
+// The board reports each alert it hides for its wording, so a false positive (a real street the
+// word list flags) shows up in the Worker's logs instead of only on a kiosk's console.
+const REPORT_MAX_BYTES = 4096
+
+async function report(req: Request): Promise<Response> {
+  if (req.method !== 'POST') return text(405, 'method not allowed')
+  const raw = await req.text()
+  if (raw.length > REPORT_MAX_BYTES) return text(413, 'too large')
+  let body: unknown
+  try {
+    body = JSON.parse(raw)
+  } catch {
+    return text(400, 'invalid json')
+  }
+  const { kind, source, id, header } = (body ?? {}) as Record<string, unknown>
+  if (kind !== 'hidden-alert' || typeof source !== 'string' || typeof id !== 'string' || typeof header !== 'string') {
+    return text(400, 'expected { kind: "hidden-alert", source, id, header }')
+  }
+  console.warn(JSON.stringify({ event: 'hidden-alert', source, id, header, origin: req.headers.get('Origin') }))
+  return new Response(null, { status: 204 })
 }
 
 async function building(deps: Deps, id: string): Promise<Response> {
@@ -219,6 +237,8 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
     res = await building(deps, parts[1].toUpperCase())
   } else if (parts[0] === 'walk' && parts.length === 1) {
     res = await walk(req, deps)
+  } else if (parts[0] === 'report' && parts.length === 1) {
+    res = await report(req)
   } else {
     res = text(404, 'not found')
   }

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { TZ } from '../util/time';
+  import { fit } from './fit';
 
   /** `tag` marks the board as not live, e.g. "Sample data" in demo mode. */
   let { building, name, now, tag }: { building: string; name: string; now: number; tag?: string } = $props();
@@ -18,7 +19,7 @@
 <header>
   <h1 class="visually-hidden">{building}{name ? ` ${name}` : ''}</h1>
   <span class="building" aria-hidden="true">{building}</span>
-  {#if name}<span class="name" aria-hidden="true">{name}</span>{/if}
+  {#if name}<span class="name" aria-hidden="true" use:fit={[{ text: name }]}></span>{/if}
   <div class="side">
     {#if tag}<span class="tag">{tag}</span>{/if}
     <time datetime={iso}>{clock.time}{#if clock.period}<small> {clock.period}</small>{/if}</time>
@@ -41,14 +42,6 @@
     grid-template-columns: auto minmax(0, 1fr);
     grid-template-areas: 'building side' 'name name';
   }
-  .visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
   .building {
     grid-area: building;
     color: var(--building, inherit);
@@ -63,24 +56,27 @@
     grid-area: name;
     min-width: 0;
     overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
     font-family: var(--font-name, var(--font-accent));
     /* Capped by width so "Metropolitan Warehouse" fits a phone instead of being cut. */
     font-size: min(2.4em, 8vw);
   }
+  /* On a narrow screen the tag moves to its own line rather than over the building number. */
   .side {
     grid-area: side;
     justify-self: end;
     display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     align-items: baseline;
-    gap: 0.8em;
+    gap: 0.2em 0.8em;
   }
   .tag {
     padding: 0.1em 0.4em;
     border: 2px solid currentColor;
     font-size: 0.75em;
     font-weight: 700;
+    white-space: nowrap;
   }
   time {
     font-family: var(--font-display);

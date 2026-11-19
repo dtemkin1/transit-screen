@@ -1,0 +1,15 @@
+// Upstream feeds by the board's feed id (FEEDS in src/config.ts). The Worker proxies only these
+// GTFS zips; scripts/scan-names.ts checks the names in all of them.
+
+const passio = (agency: string) => `https://passio3.com/${agency}/passioTransit/gtfs/google_transit.zip`
+
+/** Static GTFS zips. */
+export const GTFS_STATIC: Record<string, string> = {
+  mit: passio('mit'),
+  ezride: passio('charlesriver'),
+}
+
+/** GBFS autodiscovery URLs (the board fetches these itself; listed for the name scan). */
+export const GBFS_DISCOVERY: Record<string, string> = {
+  bluebikes: 'https://gbfs.bluebikes.com/gbfs/gbfs.json',
+}

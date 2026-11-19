@@ -11,7 +11,7 @@ export default defineConfig({
   resolve: process.env.VITEST ? { conditions: ['browser'] } : undefined,
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'scripts/**/*.test.ts'],
     env: { TZ: 'UTC' },
   },
 })

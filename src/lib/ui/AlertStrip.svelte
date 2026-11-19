@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fit } from './fit';
   import { createRotation } from './rotation.svelte';
   import type { Alert } from '../types';
 
@@ -14,7 +15,7 @@
     <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 2 1 21h22L12 2Zm1 15h-2v2h2v-2Zm0-8h-2v6h2V9Z" fill="currentColor" fill-rule="evenodd" />
     </svg>
-    <p class="text">{current.header}</p>
+    <p class="text" use:fit={[{ text: current.header }]}></p>
     {#if alerts.length > 1}<span class="count">{index + 1} of {alerts.length}</span>{/if}
   </aside>
 {/if}
@@ -35,6 +36,7 @@
     width: 1.2em;
     height: 1.2em;
   }
+  /* `fit` cuts at a word to the lines the clamp allows, so the clamp never cuts a word. */
   .text {
     flex: 1;
     margin: 0;

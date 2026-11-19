@@ -10,7 +10,7 @@ export interface Config {
   location: LatLon; workerUrl: string;
   locate: boolean; // look `building` up on the MIT campus map for `location` (and `name`, when empty)
   feeds: FeedConfig[];             // board order within a panel follows this order
-  pin: string[]; hide: string[];   // stop ids or route ids
+  pin: string[]; hide: string[];   // stop, route or alert ids; routes and alerts also as `${source}:${id}`
   walkSpeedMps: number; walkDetourFactor: number;
 }
 

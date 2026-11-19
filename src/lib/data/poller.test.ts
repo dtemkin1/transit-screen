@@ -61,13 +61,14 @@ function harness(handlers: Record<string, Handler | unknown>, disc: () => Promis
   const online = { value: true };
   const isOnline = vi.fn(async () => online.value);
   const discover = vi.fn(disc);
+  const reportHiddenAlert = vi.fn();
   const poller = createPoller(cfg, {
     fetchJson: fetchJson as unknown as PollerDeps['fetchJson'],
-    reload, discover, isOnline,
+    reload, discover, isOnline, reportHiddenAlert,
   });
   started.push(poller);
   const count = (sub: string) => calls.filter((u) => u.includes(sub)).length;
-  return { poller, calls, count, reload, discover, isOnline, online };
+  return { poller, calls, count, reload, discover, isOnline, online, reportHiddenAlert };
 }
 
 const ok = {
@@ -360,6 +361,26 @@ describe('Passio polling', () => {
     expect(h.poller.state.alerts.some((a) => a.source === 'mbta')).toBe(true);
     await vi.advanceTimersByTimeAsync(120_000);
     expect(h.count('serviceAlerts')).toBe(2);
+    h.poller.stop();
+  });
+
+  it('drops an alert whose wording is profane, keeps the others, and reports it once', async () => {
+    const typed = { entity: [
+      { id: 'ok', alert: { header_text: { translation: [{ text: 'Shuttle detour' }] } } },
+      { id: 'bad', alert: { header_text: { translation: [{ text: 'sh1t, the shuttle is late' }] } } },
+    ] };
+    const h = harness({ ...passioOk, serviceAlerts: typed }, async () => mitDiscovered());
+    h.poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const mit = h.poller.state.alerts.filter((a) => a.source === 'mit').map((a) => a.id);
+    expect(mit).toEqual(['ok']);
+    expect(console.warn).toHaveBeenCalledWith('poller: hid MIT shuttles alert bad for its wording');
+    expect(h.reportHiddenAlert).toHaveBeenCalledWith(expect.objectContaining({ source: 'mit', id: 'bad' }));
+    expect(h.poller.state.live.mit).toHaveLength(1);
+    // The next alerts poll sees it again: still hidden, not reported again.
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(h.count('serviceAlerts')).toBe(2);
+    expect(h.reportHiddenAlert).toHaveBeenCalledTimes(1);
     h.poller.stop();
   });
 

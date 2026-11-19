@@ -2,6 +2,10 @@ name = "transit-screen-worker"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
 
+# Keeps console output (such as hidden-alert reports from /report) in the dashboard's Workers Logs.
+[observability]
+enabled = true
+
 [vars]
 ALLOWED_ORIGINS = "http://localhost:5173,https://dtemkin1.github.io,https://web.mit.edu"
 

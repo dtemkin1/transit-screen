@@ -1,4 +1,5 @@
 import type { Config } from '../../config';
+import type { Alert } from '../types';
 
 export function workerUrl(cfg: Config, path: string): string {
   return `${cfg.workerUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
@@ -32,4 +33,14 @@ export function fetchJson<T>(url: string, init?: RequestInit, timeoutMs = 10_000
 
 export function fetchBytes(url: string, timeoutMs = 20_000): Promise<Uint8Array> {
   return timedFetch(url, undefined, timeoutMs, async (r) => new Uint8Array(await r.arrayBuffer()));
+}
+
+/** Tells the Worker (which logs it) that the board hid an alert for its wording. Best effort; never throws. */
+export function reportHiddenAlert(cfg: Config, alert: Alert): void {
+  fetch(workerUrl(cfg, '/report'), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ kind: 'hidden-alert', source: alert.source, id: alert.id, header: alert.header.slice(0, 1000) }),
+    keepalive: true,
+  }).catch(() => {});
 }
