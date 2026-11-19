@@ -6,6 +6,7 @@ export interface Config {
   name: string;   // building number, shown in the header block ("W41")
   place: string;  // building name beside it ("Metropolitan Warehouse"); may be empty
   palette: PaletteChoice; // SA+P frame color, or 'rotate' for a new one each day
+  inset: number;  // margin for TV overscan, % of the screen's shorter side (0-10)
   location: LatLon; workerUrl: string;
   modes: Record<Mode, ModeLimit>;
   pin: string[]; hide: string[];   // stop ids or route ids
@@ -21,6 +22,7 @@ export const defaultConfig: Config = {
   name: 'W41',
   place: 'Metropolitan Warehouse',
   palette: 'rotate',
+  inset: 0,
   location: { lat: 42.35982, lon: -71.0961 },
   workerUrl: pickWorkerUrl(import.meta.env.VITE_WORKER_URL),
   modes: {
@@ -51,6 +53,9 @@ export function resolveConfig(search: string, base: Config = defaultConfig): Con
 
   const palette = params.get('palette');
   if (palette && (palette === 'rotate' || isPaletteName(palette))) config.palette = palette;
+
+  const inset = Number(params.get('inset'));
+  if (Number.isFinite(inset)) config.inset = Math.min(10, Math.max(0, inset));
 
   const latRaw = params.get('lat');
   const lonRaw = params.get('lon');

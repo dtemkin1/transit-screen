@@ -45,8 +45,16 @@ body {
   height: 100%;
   overflow: hidden;
   background: var(--frame);
+  /* A wall display: no pointer, no accidental selection highlight if someone taps the screen. */
+  cursor: none;
+  user-select: none;
 }
 
+/*
+ * --inset (from ?inset=, in % of the shorter side) keeps content clear of TV overscan, which
+ * crops the edges on many sets. The margin shows the frame color, so it reads as part of the frame.
+ */
 #app {
   height: 100%;
+  padding: var(--inset, 0);
 }

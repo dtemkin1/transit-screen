@@ -21,6 +21,7 @@ export interface PassioStatic {
 }
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const OUT_OF_SERVICE = /\bout of service\b|^OOS$/i;
 const DEFAULT_COLORS = {
   mit: { color: '#A31F34', textColor: '#FFFFFF' },
   ezride: { color: '#1F77B4', textColor: '#FFFFFF' },
@@ -80,6 +81,8 @@ export function parsePassioZip(bytes: Uint8Array, source: 'mit' | 'ezride', mode
   const routes: PassioStatic['routes'] = new Map();
   for (const r of table('routes.txt')) {
     const longName = r.route_long_name?.trim() ?? '';
+    // Passio publishes an "OOS (out of service)" route; it isn't service a rider can take.
+    if (OUT_OF_SERVICE.test(longName) || OUT_OF_SERVICE.test(r.route_short_name?.trim() ?? '')) continue;
     routes.set(r.route_id, {
       id: r.route_id, source, mode,
       shortName: r.route_short_name?.trim() || longName,
@@ -108,6 +111,7 @@ export function parsePassioZip(bytes: Uint8Array, source: 'mit' | 'ezride', mode
 
   const trips: PassioStatic['trips'] = new Map();
   for (const r of table('trips.txt')) {
+    if (!routes.has(r.route_id)) continue;
     const last = stopTimes.get(r.trip_id)?.at(-1);
     // EZRide's trip_headsign names the service ("Evening Service"), not a destination.
     const own = source === 'ezride' ? '' : r.trip_headsign?.trim();

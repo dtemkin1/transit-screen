@@ -216,8 +216,8 @@ describe('buildBoard: staleness and merge', () => {
     }));
     // MBTA bus stops are discovered too, so the bus panel also reports it.
     expect(panels).toEqual([
-      { id: 'subway', title: 'Subway', status: 'unavailable', groups: [] },
-      { id: 'bus', title: 'Buses', status: 'unavailable', groups: [] },
+      { id: 'subway', title: 'Subway', status: 'unavailable', groups: [], notes: ['Live data unavailable'] },
+      { id: 'bus', title: 'Buses', status: 'unavailable', groups: [], notes: ['MBTA: live data unavailable'] },
     ]);
   });
 
@@ -226,7 +226,7 @@ describe('buildBoard: staleness and merge', () => {
       health: { ...input().health, mit: { lastOk: null } },
       scheduled: { ...empty(), mit: [dep('mit', 'shuttle', 'tech', 'm1')({ min: 90, live: false })] },
     }));
-    expect(panels).toEqual([{ id: 'shuttle', title: 'MIT shuttles', status: 'schedule-fallback', groups: [] }]);
+    expect(panels).toEqual([{ id: 'shuttle', title: 'MIT shuttles', status: 'schedule-fallback', groups: [], notes: ['Live data unavailable, showing schedule'] }]);
   });
 
   it('a schedule with only past departures counts as no schedule: unavailable', () => {
@@ -234,7 +234,7 @@ describe('buildBoard: staleness and merge', () => {
       health: { ...input().health, mit: { lastOk: null } },
       scheduled: { ...empty(), mit: [dep('mit', 'shuttle', 'tech', 'm1')({ min: -30, live: false })] },
     }));
-    expect(panels).toEqual([{ id: 'shuttle', title: 'MIT shuttles', status: 'unavailable', groups: [] }]);
+    expect(panels).toEqual([{ id: 'shuttle', title: 'MIT shuttles', status: 'unavailable', groups: [], notes: ['Live data unavailable'] }]);
   });
 
   it('no empty panel for a failing source without discovered stops', () => {
@@ -380,6 +380,33 @@ describe('buildBoard: bus and shuttle', () => {
     expect(panel(panels, 'bus')!.status).toBe('delayed');
   });
 
+  it('a shared panel names the agency a note is about, so live MBTA rows are not called unavailable', () => {
+    const { panels } = buildBoard(input({
+      health: { ...input().health, ezride: { lastOk: NOW - 11 * MIN } },
+      live: withLive([bus1('1001', { min: 9 })]),
+      scheduled: { ...input().scheduled, ezride: [dep('ezride', 'ezride', 'er', 'e1')({ min: 8, live: false })] },
+    }));
+    expect(panel(panels, 'bus')!.notes).toEqual(['EZRide: live data unavailable, showing schedule']);
+  });
+
+  it('a delayed source gets a note; a panel with one source needs no agency name', () => {
+    const delayed = buildBoard(input({
+      health: { ...input().health, ezride: { lastOk: NOW - 3 * MIN } },
+      live: withLive([bus1('1001', { min: 9 })]),
+    }));
+    expect(panel(delayed.panels, 'bus')!.notes).toEqual(['EZRide: data delayed']);
+    const shuttles = buildBoard(input({
+      health: { ...input().health, mit: { lastOk: NOW - 3 * MIN } },
+      live: withLive([], { mit: [dep('mit', 'shuttle', 'tech', 'm1')({ min: 4, headsign: 'Kendall' })] }),
+    }));
+    expect(panel(shuttles.panels, 'shuttle')!.notes).toEqual(['Data delayed']);
+  });
+
+  it('healthy panels have no notes', () => {
+    const { panels } = buildBoard(input({ live: withLive([bus1('1001', { min: 9 })]) }));
+    expect(panel(panels, 'bus')!.notes).toEqual([]);
+  });
+
   it('shuttle panel titled "MIT Shuttles"', () => {
     const { panels } = buildBoard(input({
       live: withLive([], { mit: [dep('mit', 'shuttle', 'tech', 'm1')({ min: 4, headsign: 'Kendall' })] }),
@@ -430,13 +457,13 @@ describe('buildBoard: bikes and order', () => {
     });
     const { panels } = buildBoard(input({ live, discovered: discovered([BIKE]) }));
     expect(panels.map((p) => p.id)).toEqual(['subway', 'bus', 'shuttle', 'bikes']);
-    expect(panel(panels, 'bikes')).toEqual({ id: 'bikes', title: 'Bluebikes', status: 'ok', groups: [] });
+    expect(panel(panels, 'bikes')).toEqual({ id: 'bikes', title: 'Bluebikes', status: 'ok', groups: [], notes: [] });
 
     const stale = buildBoard(input({
       discovered: discovered([BIKE]),
       health: { ...input().health, bluebikes: { lastOk: NOW - 11 * MIN } },
     }));
-    expect(stale.panels).toEqual([{ id: 'bikes', title: 'Bluebikes', status: 'unavailable', groups: [] }]);
+    expect(stale.panels).toEqual([{ id: 'bikes', title: 'Bluebikes', status: 'unavailable', groups: [], notes: ['Live data unavailable'] }]);
 
     expect(buildBoard(input()).panels).toEqual([]);
   });

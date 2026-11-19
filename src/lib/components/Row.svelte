@@ -20,15 +20,20 @@
       ? `${shortStopName(row.stopName)}, ${row.walkEstimated ? '~' : ''}${row.walkMin} min walk`
       : '',
   );
+  // MIT shuttles are known by route ("Tech Shuttle"), and their loops' last stop says little on
+  // its own, so they lead with the route name. Everything else leads with the destination.
+  const routeName = $derived(row.route.source === 'mit' ? row.route.longName || row.route.shortName : '');
 </script>
 
 <div class="row">
   <span class="badge" style:background={badge.bg} style:color={badge.fg}>{badge.text}</span>
   <div class="dest">
-    <span class="headsign">{row.headsign}</span>
+    <span class="headsign">
+      {#if routeName}{routeName}{#if row.headsign && row.headsign !== routeName}<span class="toward">{` to ${row.headsign}`}</span>{/if}{:else}{row.headsign}{/if}
+    </span>
     {#if next?.status || where}
       <span class="sub">
-        {#if next?.status}<span class="status">{next.status}</span>{#if where}. {/if}{/if}{where}
+        {#if next?.status}<span class="status">{next.status}</span>{/if}{#if next?.status && where}{'. '}{/if}{where}
       </span>
     {/if}
   </div>
@@ -48,17 +53,18 @@
   .row {
     height: var(--row);
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    /* A fixed badge column, so every destination starts at the same x. */
+    grid-template-columns: 2.7em minmax(0, 1fr) auto;
     align-items: center;
     column-gap: 0.55em;
     border-top: 1px solid var(--rule);
   }
   .badge {
-    min-width: 2.1em;
-    padding: 0.12em 0.3em;
+    padding: 0.12em 0;
     font-weight: 700;
     text-align: center;
     white-space: nowrap;
+    letter-spacing: -0.02em;
   }
   .dest,
   .times {
@@ -78,9 +84,12 @@
   .headsign {
     font-weight: 700;
   }
+  .toward {
+    font-weight: 400;
+  }
   .sub,
   .later {
-    font-size: 0.72em;
+    font-size: 0.76em;
     color: var(--muted);
     white-space: nowrap;
   }

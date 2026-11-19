@@ -5,19 +5,23 @@
   import BikesPanel from './lib/components/BikesPanel.svelte';
   import Header from './lib/components/Header.svelte';
   import Panel from './lib/components/Panel.svelte';
+  import { createDemoPoller } from './lib/demo.svelte';
   import { paletteFor } from './lib/palette';
   import { createPoller } from './lib/poller.svelte';
   import { serviceDate } from './lib/time';
   import type { PanelId } from './lib/types';
 
   const cfg = resolveConfig(location.search);
-  const poller = createPoller(cfg);
+  // `?demo` on the dev server shows sample data covering every state (src/lib/demo.svelte.ts).
+  const demo = import.meta.env.DEV ? new URLSearchParams(location.search).get('demo') : null;
+  const poller = demo !== null ? createDemoPoller(demo) : createPoller(cfg);
   const data = poller.state;
 
   // Chosen once per page load; the board reloads daily at 04:00, which moves a rotating palette on.
   const palette = paletteFor(cfg.palette, serviceDate(Date.now()));
   document.documentElement.style.setProperty('--frame', palette.frame);
   document.documentElement.style.setProperty('--on-frame', palette.onFrame);
+  document.documentElement.style.setProperty('--inset', `${cfg.inset}vmin`);
 
   $effect(() => {
     poller.start();

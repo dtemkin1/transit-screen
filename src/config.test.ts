@@ -35,6 +35,13 @@ describe('resolveConfig', () => {
     expect(resolveConfig('?palette=rotate').palette).toBe('rotate');
     expect(resolveConfig('?palette=plaid').palette).toBe('rotate');
   });
+  it('inset (overscan margin, % of the shorter side) defaults to 0 and is clamped to 0-10', () => {
+    expect(resolveConfig('').inset).toBe(0);
+    expect(resolveConfig('?inset=3').inset).toBe(3);
+    expect(resolveConfig('?inset=40').inset).toBe(10);
+    expect(resolveConfig('?inset=-2').inset).toBe(0);
+    expect(resolveConfig('?inset=abc').inset).toBe(0);
+  });
   it('a new name without a place clears the default place', () => {
     expect(resolveConfig('?name=32').place).toBe('');
   });

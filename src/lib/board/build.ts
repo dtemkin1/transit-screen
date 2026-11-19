@@ -91,6 +91,25 @@ function passioServing(p: PassioStatic): Map<string, Set<string>> {
 
 const nextDeparture = (row: BoardRow): number => row.times[0]?.departureTime ?? Infinity;
 
+const AGENCY: Record<Source, string> = { mbta: 'MBTA', mit: 'MIT shuttles', ezride: 'EZRide', bluebikes: 'Bluebikes' };
+const NOTE: Partial<Record<PanelStatus, string>> = {
+  'delayed': 'data delayed',
+  'schedule-fallback': 'live data unavailable, showing schedule',
+  'unavailable': 'live data unavailable',
+};
+
+/**
+ * One line per agency whose data isn't fully live. A panel with several agencies names the
+ * one each note is about, so a stale EZRide feed doesn't read as "all buses unavailable".
+ */
+function panelNotes(sources: Source[], status: Record<Source, PanelStatus>): string[] {
+  return sources.flatMap((s) => {
+    const note = NOTE[status[s]];
+    if (!note) return [];
+    return [sources.length > 1 ? `${AGENCY[s]}: ${note}` : note[0].toUpperCase() + note.slice(1)];
+  });
+}
+
 export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: Alert[] } {
   const { discovered, nowMs, hide } = input;
 
@@ -139,12 +158,16 @@ export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: A
   const panels: BoardPanel[] = [];
   const shownStops = new Set<Stop>();
   const shownRoutes = new Set<string>();
-  const panelStatus = (id: Exclude<PanelId, 'bikes'>) => worstStatus(PANEL_SOURCES[id].map((s) => status[s]));
+  // A panel answers only for agencies with stops in it: a stale EZRide feed says nothing about
+  // the Buses panel when no EZRide stop is nearby.
+  const panelSources = (id: Exclude<PanelId, 'bikes'>) => PANEL_SOURCES[id].filter((src) =>
+    discovered.stops.some((s) => s.source === src && PANEL_MODES[id].includes(s.mode)));
   const emit = (id: Exclude<PanelId, 'bikes'>, title: string, groups: BoardGroup[]) => {
-    const st = panelStatus(id);
+    const sources = panelSources(id);
+    const st = worstStatus(sources.map((s) => status[s]));
     // A failing source keeps its panel (empty) so the UI can say live data is unavailable.
-    const failing = st !== 'ok' && st !== 'delayed' && discovered.stops.some((s) => PANEL_MODES[id].includes(s.mode));
-    if (groups.length > 0 || failing) panels.push({ id, title, status: st, groups });
+    const failing = st !== 'ok' && st !== 'delayed' && sources.length > 0;
+    if (groups.length > 0 || failing) panels.push({ id, title, status: st, groups, notes: panelNotes(sources, status) });
   };
   const makeRow = (key: string, placed: Placed[], extra: Partial<BoardRow> = {}): BoardRow | null => {
     const { cells: times, lead } = timeCells(placed, nowMs);
@@ -206,7 +229,7 @@ export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: A
   emit('shuttle', 'MIT shuttles', closestRows(shown.filter((p) => p.d.mode === 'shuttle')));
 
   if (discovered.bikes.length > 0) {
-    panels.push({ id: 'bikes', title: 'Bluebikes', status: sourceStatus(input.health.bluebikes, nowMs, false), groups: [] });
+    panels.push({ id: 'bikes', title: 'Bluebikes', status: status.bluebikes, groups: [], notes: panelNotes(['bluebikes'], status) });
   }
 
   return { panels, alerts: relevantAlerts(input.alerts, shownStops, shownRoutes) };

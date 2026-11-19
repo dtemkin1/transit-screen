@@ -5,7 +5,7 @@ import type { BoardGroup, BoardPanel, BoardRow, RouteInfo, TimeCell } from '../t
 const route: RouteInfo = { id: 'R', source: 'mbta', mode: 'subway', shortName: 'R', longName: 'Red Line', color: '#DA291C', textColor: '#FFFFFF' };
 const cell = (min: number): TimeCell => ({ label: `${min} min`, live: true, departureTime: min * 60_000 });
 const row = (key: string, times: TimeCell[]): BoardRow => ({ key, route, headsign: key, times });
-const panel = (groups: BoardGroup[]): BoardPanel => ({ id: 'subway', title: 'Subway', status: 'ok', groups });
+const panel = (groups: BoardGroup[]): BoardPanel => ({ id: 'subway', title: 'Subway', status: 'ok', groups, notes: [] });
 const lines = (p: BoardPanel) => p.groups.reduce((n, g) => n + (g.header ? 1 : 0) + g.rows.length, 0);
 const shape = (p: BoardPanel) => p.groups.map((g) => g.rows.map((r) => `${r.key}:${r.times.map((t) => t.departureTime / 60_000).join(',')}`));
 

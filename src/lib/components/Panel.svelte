@@ -20,6 +20,11 @@
   const shown = $derived(trimPanel(panel, maxLines, HEADER_EM / ROW_EM));
   const hasRows = $derived(panel.groups.some((g) => g.rows.length > 0));
   const unavailable = $derived((panel.status === 'unavailable' || panel.status === 'schedule-fallback') && !hasRows);
+  // With nothing listed, "showing schedule" would be untrue: the empty panel just says what's down.
+  const emptyNotes = $derived.by(() => {
+    const notes = panel.notes.filter((n) => !/data delayed$/i.test(n)).map((n) => n.replace(/, showing schedule$/, ''));
+    return notes.length > 0 ? [...new Set(notes)] : ['Live data unavailable'];
+  });
 
   function measure() {
     if (!body) return;
@@ -38,12 +43,12 @@
 <section class="panel" aria-label={panel.title} style:--row="{ROW_EM}em" style:--header="{HEADER_EM}em">
   <h2 class="title">
     <span class="name">{panel.title}</span>
-    {#if panel.status === 'delayed'}<span class="flag">Data delayed</span>{/if}
-    {#if panel.status === 'schedule-fallback' && hasRows}<span class="flag">Live data unavailable, showing schedule</span>{/if}
+    <!-- With no rows the body says it instead (below). -->
+    {#if !unavailable}{#each panel.notes as note (note)}<span class="flag">{note}</span>{/each}{/if}
   </h2>
   <div class="body" bind:this={body}>
     {#if unavailable}
-      <p class="note">Live data unavailable</p>
+      {#each emptyNotes as note (note)}<p class="note">{note}</p>{/each}
     {:else if children}
       {@render children(Math.floor(maxLines))}
     {:else}
@@ -86,11 +91,13 @@
     white-space: nowrap;
   }
   .name {
-    overflow: hidden;
-    text-overflow: ellipsis;
+    flex: none;
   }
   .flag {
-    flex: none;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
     font-family: var(--font-sans);
     font-size: 0.55em;
     font-weight: 700;

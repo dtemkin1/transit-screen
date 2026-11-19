@@ -4,7 +4,13 @@
   let { name, place, now }: { name: string; place: string; now: number } = $props();
 
   const clockFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' });
-  const clock = $derived(clockFmt.format(now));
+  // "9:44" large, "PM" small: the digits are what people read from across the room.
+  const clock = $derived.by(() => {
+    const parts = clockFmt.formatToParts(now);
+    const period = parts.find((p) => p.type === 'dayPeriod')?.value ?? '';
+    const time = parts.filter((p) => p.type !== 'dayPeriod').map((p) => p.value).join('').trim();
+    return { time, period };
+  });
   const iso = $derived(new Date(now).toISOString());
 </script>
 
@@ -13,7 +19,7 @@
     <span class="building">{name}</span>
     {#if place}<span class="place">{place}</span>{/if}
   </h1>
-  <time datetime={iso}>{clock}</time>
+  <time datetime={iso}>{clock.time}{#if clock.period}<small> {clock.period}</small>{/if}</time>
 </header>
 
 <style>
@@ -23,7 +29,7 @@
     justify-content: space-between;
     align-items: baseline;
     gap: 2vmin;
-    padding: 1.4vmin 2.2vmin 1vmin;
+    padding: 1.2vmin 2.2vmin 0.9vmin;
     background: var(--frame);
     color: var(--on-frame);
   }
@@ -41,7 +47,7 @@
   }
   .building {
     font-family: var(--font-display);
-    font-size: 1.9em;
+    font-size: 1.7em;
     font-weight: 500;
     letter-spacing: -0.025em;
     line-height: 1;
@@ -51,13 +57,17 @@
     overflow: hidden;
     text-overflow: ellipsis;
     font-family: var(--font-serif);
-    font-size: 1.3em;
+    font-size: 1.2em;
   }
   time {
     font-family: var(--font-display);
-    font-size: 1.5em;
+    font-size: 1.45em;
     font-weight: 500;
-    letter-spacing: 0;
     white-space: nowrap;
+  }
+  time small {
+    margin-left: 0.2em;
+    font-size: 0.55em;
+    letter-spacing: 0.02em;
   }
 </style>

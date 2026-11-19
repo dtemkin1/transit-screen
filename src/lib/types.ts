@@ -42,4 +42,7 @@ export interface BoardRow {
   times: TimeCell[];
 }
 export interface BoardGroup { header?: { name: string; walkMin: number; walkEstimated: boolean }; rows: BoardRow[] }
-export interface BoardPanel { id: PanelId; title: string; status: PanelStatus; groups: BoardGroup[] }
+export interface BoardPanel {
+  id: PanelId; title: string; status: PanelStatus; groups: BoardGroup[];
+  notes: string[];  // what isn't fully live, per agency ("EZRide: data delayed")
+}

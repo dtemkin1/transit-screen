@@ -41,6 +41,15 @@ describe('parsePassioZip', () => {
     }), 'ezride', 'ezride');
     expect(ez.trips.get('t1')!.headsign).toBe('Stop D');
   });
+  it('skips "out of service" routes and their trips (Passio publishes "OOS (out of service)")', () => {
+    const oos = parsePassioZip(toZip({
+      ...files,
+      'routes.txt': 'route_id,route_short_name,route_long_name,route_color,route_text_color\nr1,,Tech Shuttle,,\nr9,,OOS (out of service),FAFE01,D62728\n',
+      'trips.txt': 'route_id,service_id,trip_id,trip_headsign,direction_id\nr1,WK,t1,,\nr9,WK,t2,,\n',
+    }), 'mit', 'shuttle');
+    expect([...oos.routes.keys()]).toEqual(['r1']);
+    expect(oos.trips.has('t2')).toBe(false);
+  });
   it('MIT keeps a real trip_headsign', () => {
     const mit = parsePassioZip(toZip({
       ...files,

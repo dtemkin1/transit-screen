@@ -31,7 +31,8 @@
   }
   .icon {
     flex: none;
-    color: var(--frame);
+    /* SA+P lime: reads on the burgundy band whatever today's frame color is. */
+    color: #e0fd65;
     width: 1.2em;
     height: 1.2em;
   }
