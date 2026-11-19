@@ -47,8 +47,9 @@
     };
   });
 
-  // One column only on screens clearly taller than wide; the header reads the same <html data-layout>.
-  const portraitQuery = matchMedia('(max-aspect-ratio: 5/6)');
+  // One column on screens clearly taller than wide, or too narrow for two columns of 16 px type
+  // (36 type-widths, as app.css caps it); the header reads the same <html data-layout>.
+  const portraitQuery = matchMedia('(max-aspect-ratio: 5/6), (max-width: 575px)');
   let landscape = $state(!portraitQuery.matches);
   $effect(() => {
     const update = () => (landscape = !portraitQuery.matches);

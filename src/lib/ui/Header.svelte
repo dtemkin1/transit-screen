@@ -1,6 +1,6 @@
 <script lang="ts">
   import { TZ } from '../util/time';
-  import { fit } from './fit';
+  import { shrinkToFit } from './shrink';
 
   /** `tag` marks the board as not live, e.g. "Sample data" in demo mode. */
   let { building, name, now, tag }: { building: string; name: string; now: number; tag?: string } = $props();
@@ -19,7 +19,7 @@
 <header>
   <h1 class="visually-hidden">{building}{name ? ` ${name}` : ''}</h1>
   <span class="building" aria-hidden="true">{building}</span>
-  {#if name}<span class="name" aria-hidden="true" use:fit={[{ text: name }]}></span>{/if}
+  {#if name}<span class="name" aria-hidden="true" use:shrinkToFit={name}></span>{/if}
   <div class="side">
     {#if tag}<span class="tag">{tag}</span>{/if}
     <time datetime={iso}>{clock.time}{#if clock.period}<small> {clock.period}</small>{/if}</time>
@@ -52,14 +52,14 @@
     line-height: 1;
     white-space: nowrap;
   }
+  /* Never cut: `shrinkToFit` makes it smaller to fit, and wraps it between words below body size. */
   .name {
     grid-area: name;
     min-width: 0;
-    overflow: hidden;
     white-space: nowrap;
+    line-height: 1.1;
     font-family: var(--font-name, var(--font-accent));
-    /* Capped by width so "Metropolitan Warehouse" fits a phone instead of being cut. */
-    font-size: min(2.4em, 8vw);
+    font-size: 2.4em;
   }
   /* On a narrow screen the tag moves to its own line rather than over the building number. */
   .side {
