@@ -31,7 +31,7 @@ export interface Departure {
   source: Source; mode: Mode; routeId: string;
   /** The feed's platform-level id; `Stop.platformIds` maps it to a stop. */
   stopId: string;
-  /** MBTA: `${routeId}:${direction_id}`; GTFS: `${routeId}:${headsign}`. */
+  /** MBTA: `${routeId}:${direction_id}`; GTFS: `${routeId}:${headsign}`, or the headsign alone for a feed with one badge. */
   directionKey: string;
   headsign: string;
   /** Epoch ms. */

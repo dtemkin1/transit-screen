@@ -37,8 +37,13 @@ describe('gtfs adapter', () => {
   });
 
   it('records where each direction boards, leaving out the drop-off-only last stop', async () => {
-    const { c } = await candidates();
+    const { c } = await candidates({ ...feed, badge: undefined });
     expect(c.serving).toEqual(new Map([['r1:Stop B', new Set(['A'])]]));
+  });
+
+  it('keys directions by destination alone when every route shares the badge', async () => {
+    const { c } = await candidates();
+    expect(c.serving).toEqual(new Map([['Stop B', new Set(['A'])]]));
   });
 
   it('gives every route the feed\'s badge, and marks named feeds', async () => {

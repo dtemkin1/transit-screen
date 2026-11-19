@@ -1,6 +1,6 @@
 // GTFS-RT in its JSON form (as Passio serves it); protobuf feeds would need decoding first.
 import type { Alert, Departure, Source } from '../../types';
-import type { GtfsStatic } from './static';
+import { directionKey, type GtfsStatic } from './static';
 
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v && typeof v === 'object' ? (v as Obj) : {});
@@ -48,7 +48,7 @@ export function parseTripUpdates(
       if (t === null || t < nowMs) continue;
       out.push({
         source: s.source, mode: s.mode, routeId, stopId,
-        directionKey: `${routeId}:${headsign}`, headsign,
+        directionKey: directionKey(s, routeId, headsign), headsign,
         departureTime: t, ...(arrival !== null && { arrivalTime: arrival }),
         live: true, tripId,
         ...(vehicleId != null && vehicleId !== '' && { vehicleId: String(vehicleId) }),

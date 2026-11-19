@@ -101,6 +101,19 @@ describe('scheduledDepartures', () => {
       live: false, directionKey: 'r1:Stop D', headsign: 'Stop D', source: 'mit', mode: 'shuttle',
     });
   });
+  it('mergeRoutes gives two routes to one destination the same direction (EZRide\'s morning and evening shuttles)', () => {
+    const two = {
+      ...files,
+      'routes.txt': 'route_id,route_short_name,route_long_name,route_color,route_text_color\nr1,EZRide,Evening Shuttle,,\nr2,,Morning Shuttle,,\n',
+      'trips.txt': 'route_id,service_id,trip_id,trip_headsign,direction_id\nr1,WK,t1,,\nr2,WK,t2,,\n',
+      'stop_times.txt': 'trip_id,arrival_time,departure_time,stop_id,stop_sequence\nt1,07:30:00,07:30:00,A,1\nt1,07:36:00,07:36:00,D,2\nt2,07:40:00,07:40:00,A,1\nt2,07:46:00,07:46:00,D,2\n',
+    };
+    const keys = (o: GtfsOptions) =>
+      scheduledDepartures(parseGtfsZip(toZip(two), o), new Set(['A']), Date.parse('2026-11-17T12:00:00Z'), 3600e3)
+        .map((d) => d.directionKey);
+    expect(keys(EZ)).toEqual(['r1:Stop D', 'r2:Stop D']);
+    expect(keys({ ...EZ, mergeRoutes: true })).toEqual(['Stop D', 'Stop D']);
+  });
   it('excludes last stop of trip', () => {
     expect(scheduledDepartures(s, new Set(['D']), Date.parse('2026-11-17T12:00:00Z'), 3600e3)).toEqual([]);
   });

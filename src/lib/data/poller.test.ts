@@ -296,7 +296,7 @@ describe('poller', () => {
 });
 
 const mitStatic: GtfsStatic = {
-  source: 'mit', mode: 'shuttle',
+  source: 'mit', mode: 'shuttle', mergeRoutes: false,
   stops: new Map(['s1', 's2', 's3'].map((id) => [id, { id, name: id, lat: 0, lon: 0 }])),
   routes: new Map([['R1', { id: 'R1', source: 'mit', mode: 'shuttle', shortName: 'R1', longName: 'Route 1', color: '#000000', textColor: '#FFFFFF' }]]),
   trips: new Map([['t1', { routeId: 'R1', serviceId: 'svc', headsign: 'Kendall' }]]),

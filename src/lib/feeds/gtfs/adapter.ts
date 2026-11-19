@@ -1,5 +1,5 @@
 import { parseServiceAlerts, parseTripUpdates } from './realtime';
-import { parseGtfsZip, scheduledDepartures, type GtfsStatic } from './static';
+import { directionKey, parseGtfsZip, scheduledDepartures, type GtfsStatic } from './static';
 import type { Stop } from '../../types';
 import { workerUrl } from '../../data/worker-client';
 import type { Adapter, FeedScope, GtfsFeed, Poll } from '../types';
@@ -20,11 +20,11 @@ function servedStops(p: GtfsStatic): Stop[] {
     }));
 }
 
-/** Stop ids each direction (`${routeId}:${headsign}`) boards at. */
+/** Stop ids each direction boards at. */
 function serving(p: GtfsStatic): Map<string, Set<string>> {
   const out = new Map<string, Set<string>>();
   for (const [tripId, trip] of p.trips) {
-    const key = `${trip.routeId}:${trip.headsign}`;
+    const key = directionKey(p, trip.routeId, trip.headsign);
     const set = out.get(key) ?? new Set<string>();
     for (const t of (p.stopTimes.get(tripId) ?? []).slice(0, -1)) set.add(t.stopId);
     out.set(key, set);
@@ -38,7 +38,7 @@ const headerTime = (json: unknown) => (json as { header?: { timestamp?: unknown 
 export const gtfs: Adapter<GtfsFeed, GtfsStatic> = {
   async candidates(feed, { cfg, fetchBytes }) {
     const p = parseGtfsZip(await fetchBytes(workerUrl(cfg, `/gtfs/${feed.id}`)), {
-      source: feed.id, mode: feed.mode, color: feed.color, headsign: feed.headsign,
+      source: feed.id, mode: feed.mode, color: feed.color, headsign: feed.headsign, mergeRoutes: !!feed.badge,
     });
     for (const [id, r] of p.routes) {
       p.routes.set(id, {

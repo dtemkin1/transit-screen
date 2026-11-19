@@ -59,7 +59,7 @@ Other `Config` fields are set in code only (`src/config.ts`):
 - Alerts are screened for profanity, since people type them. A flagged alert isn't shown; see [Wording filter](#wording-filter).
 - MIT shuttle rows lead with the route name ("Tech Shuttle to Kendall Square T"), since riders know shuttles by route. Routes Passio marks "out of service" are never shown.
 - When one agency's data isn't fully live, the panel title says which ("EZRide: data delayed"), so live rows from the other agency in the same panel aren't called into question.
-- All EZRide routes are labelled `EZ` in the agency color (the feed's `badge` in `src/config.ts`), with the trip's final stop as the destination.
+- All EZRide routes are labelled `EZ` in the agency color (the feed's `badge` in `src/config.ts`), with the trip's final stop as the destination. Since the routes look the same, routes to the same stop share one row.
 
 ### Look
 

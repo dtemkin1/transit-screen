@@ -18,7 +18,13 @@ export interface GtfsStatic {
   stopTimes: Map<string, { stopId: string; seq: number; dep: string }[]>;
   calendar: Map<string, CalendarRow>;
   calendarDates: { serviceId: string; date: string; add: boolean }[];
+  /** See `GtfsOptions.mergeRoutes`. */
+  mergeRoutes: boolean;
 }
+
+/** A trip's direction: its route and headsign, or the headsign alone when routes are merged. */
+export const directionKey = (s: GtfsStatic, routeId: string, headsign: string) =>
+  s.mergeRoutes ? headsign : `${routeId}:${headsign}`;
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const OUT_OF_SERVICE = /\bout of service\b|^OOS$/i;
@@ -30,6 +36,8 @@ export interface GtfsOptions {
   color: string;
   /** 'last-stop' ignores trip_headsign. */
   headsign?: 'trip' | 'last-stop';
+  /** One row per destination across routes, for routes riders can't tell apart (one shared badge). */
+  mergeRoutes?: boolean;
 }
 
 function toSec(hms: string): number {
@@ -73,7 +81,9 @@ function resolveTimes(rows: RawStopTime[]): { stopId: string; seq: number; dep: 
   return out;
 }
 
-export function parseGtfsZip(bytes: Uint8Array, { source, mode, color, headsign: headsignFrom = 'trip' }: GtfsOptions): GtfsStatic {
+export function parseGtfsZip(
+  bytes: Uint8Array, { source, mode, color, headsign: headsignFrom = 'trip', mergeRoutes = false }: GtfsOptions,
+): GtfsStatic {
   const entries = unzipSync(bytes, { filter: (f) => f.name !== 'shapes.txt' });
   const table = (name: string) => (entries[name] ? parseCsv(strFromU8(entries[name])) : []);
 
@@ -137,7 +147,7 @@ export function parseGtfsZip(bytes: Uint8Array, { source, mode, color, headsign:
     serviceId: r.service_id, date: r.date, add: r.exception_type?.trim() === '1',
   }));
 
-  return { source, mode, stops, routes, trips, stopTimes, calendar, calendarDates };
+  return { source, mode, stops, routes, trips, stopTimes, calendar, calendarDates, mergeRoutes };
 }
 
 export function activeServiceIds(s: GtfsStatic, sd: string): Set<string> {
@@ -180,7 +190,7 @@ export function scheduledDepartures(
         if (t < nowMs || t > nowMs + windowMs) continue;
         out.push({
           source: s.source, mode: s.mode, routeId: trip.routeId, stopId: st.stopId,
-          directionKey: `${trip.routeId}:${trip.headsign}`, headsign: trip.headsign,
+          directionKey: directionKey(s, trip.routeId, trip.headsign), headsign: trip.headsign,
           departureTime: t, live: false, tripId,
         });
       }
