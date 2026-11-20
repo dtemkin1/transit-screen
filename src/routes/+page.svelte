@@ -4,6 +4,7 @@
   import { dev } from '$app/env';
   import { updated } from '$app/state';
   import { buildBoard } from '#lib/board/build.ts';
+  import { marksShown } from '#lib/board/legend.ts';
   import { PANELS, panelToHide } from '#lib/board/panels.ts';
   import { panelNeed, panelRows, priorityFactor, splitColumn, uncappedPanel, type ColumnItem } from '#lib/board/size.ts';
   import { measure, type ColumnSize } from '#lib/ui/measure.ts';
@@ -88,6 +89,7 @@
           stations: data.stations,
           hide: cfg.hide,
           extraRoutes: data.extraRoutes,
+          cancelled: data.cancelled,
         })
       : undefined,
   );
@@ -116,6 +118,8 @@
     const next = panelToHide(columns.map((col) => col.map((x) => x.panel.id)), overflowing, cfg.priority);
     if (next) hidden = [...hidden, next];
   });
+  /** Which marks the board's rows carry (cut rows included), so the line at the bottom explains only those. */
+  const marks = $derived(marksShown(board?.panels ?? []));
   const listFormat = new Intl.ListFormat('en', { type: 'conjunction' });
   const hiddenNote = $derived.by(() => {
     const titles = (board?.panels ?? []).filter((p) => hidden.includes(p.id)).map((p) => p.title);
@@ -208,10 +212,12 @@
   </main>
 
   {#if board}<AlertStrip alerts={board.alerts} />{/if}
-  <!-- Always shown: toggling it would resize every panel. -->
+  <!-- Always there at one line's height, even empty: its parts come and go, and a resize would move every panel. -->
   {#if board}
     <p class="legend">
-      Times in italics are scheduled. Others are live.{#if hiddenNote}{' '}<span class="hidden-note">{hiddenNote}</span>{/if}
+      {#if marks.scheduled}<span class="key">Times in italics are scheduled.</span>{/if}
+      {#if marks.missable}<span class="key">Times marked * may leave before you can walk there.</span>{/if}
+      {#if hiddenNote}<span class="hidden-note">{hiddenNote}</span>{/if}
     </p>
   {/if}
 </div>
@@ -259,18 +265,31 @@
     font-size: 1.3em;
     color: var(--muted);
   }
+  /* One line, never wrapping: when it runs out of room, the hidden-panel note is cut first. */
   .legend {
     margin: 0;
     padding: 0.5vmin 2.2vmin 0.8vmin;
+    display: flex;
+    column-gap: 0.4em;
+    min-height: calc(1.2em + 1.3vmin);
+    white-space: nowrap;
+    overflow: hidden;
     background: var(--page);
     border-top: var(--rail-w) solid var(--rail);
     font-family: var(--font-accent);
     font-size: 0.75em;
     font-style: italic;
+    line-height: 1.2;
     color: var(--muted);
+  }
+  .key {
+    flex: none;
   }
   /* Says which panels a short screen left out, so a missing panel isn't read as no service. */
   .hidden-note {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
     font-family: var(--font-sans);
     font-style: normal;
     font-weight: 700;

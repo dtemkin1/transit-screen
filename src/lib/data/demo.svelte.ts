@@ -1,4 +1,4 @@
-// Dev-only sample data covering every board state: ?demo, ?demo=outage, ?demo=loading, ?demo=failing.
+// Dev-only sample data covering every board state: ?demo, ?demo=outage, ?demo=disruption, ?demo=loading, ?demo=failing.
 // The board uses it only when `dev` (from $app/env) is true, so production builds never include it.
 import { FEEDS } from '../../config';
 import type { Discovered } from './discovery';
@@ -58,10 +58,28 @@ function departures(now: number): { live: Departure[]; scheduled: Departure[] } 
     dep('mbta', '85', 'b-vassar', '0', 'Spring Hill via Union Square and Somerville Avenue', 3, { status: 'Approaching' }),
     dep('mbta', '85', 'b-vassar', '0', 'Spring Hill via Union Square and Somerville Avenue', 33),
     ...[3, 18].map((m) => dep('mit', 'ts', 'm-vassar', '', 'Kendall Square T', m)),
-    dep('mit', 'sca', 'm-77', '', 'Simmons Hall', 11),
+    // 77 Mass Ave is a 3 min walk and this is the shuttle's only trip: it shows marked as one you may miss.
+    dep('mit', 'sca', 'm-77', '', 'Simmons Hall', 1),
   ];
   const scheduled = [6, 26].map((m) => dep('ezride', '6448', 'e-vassar', '', 'North Station', m, { live: false }));
   return { live, scheduled };
+}
+
+/**
+ * ?demo=disruption: MBTA cancelling Central's timetabled northbound trips with no live train listed,
+ * as during a planned shuttle diversion. The row says "No trains predicted".
+ */
+function disrupt(d: { live: Departure[]; scheduled: Departure[] }, now: number) {
+  const centralNorth = (x: Departure) => x.stopId === 'place-cntsq' && x.directionKey === 'Red:1';
+  const timetable = [10, 18].map((m, i): Departure => ({
+    source: 'mbta', mode: 'subway', routeId: 'Red', stopId: 'place-cntsq', headsign: 'Alewife', live: false,
+    tripId: `demo-cancelled-${i}`, directionKey: 'Red:1', departureTime: now + m * MIN,
+  }));
+  return {
+    live: d.live.filter((x) => !centralNorth(x)),
+    scheduled: [...d.scheduled, ...timetable],
+    cancelled: [{ tripId: 'demo-cancelled-0', stopId: 'place-cntsq', directionKey: 'Red:1' }],
+  };
 }
 
 const dock = (id: string, name: string, walkSec: number, status: Partial<Station> = {}): Station => ({
@@ -78,7 +96,9 @@ export function createDemoPoller(kind: string) {
   const start0 = Date.now();
   const empty = (): Record<Source, Departure[]> => Object.fromEntries(FEEDS.map((f) => [f.id, []]));
   const ago = (ms: number) => ({ lastOk: start0 - ms });
-  const { live, scheduled } = departures(start0);
+  const sample = departures(start0);
+  const disrupted = kind === 'disruption' ? disrupt(sample, start0) : undefined;
+  const { live, scheduled } = disrupted ?? sample;
   const outage = kind === 'outage';
   const bySource = (ds: Departure[]) => {
     const out = empty();
@@ -114,6 +134,7 @@ export function createDemoPoller(kind: string) {
     stations: STATIONS,
     extraRoutes: [],
     service,
+    cancelled: disrupted ? { mbta: disrupted.cancelled } : {},
     now: start0,
   });
 

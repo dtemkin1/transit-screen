@@ -1,5 +1,14 @@
 # Panel sizing by need
 
+## Changed after building
+
+The design below is the one approved. Trying it on the board changed four parts; the code in `src/lib/board/size.ts` is current.
+
+- **Splitting.** Each panel starts at its need: its title plus that many rows. Spare room goes to the column's highest-priority panel that has something to show. In a short column, a panel one step higher in `priority` gives up 1/1.25 as much per pixel of its starting height. Splitting purely in proportion to weight left blank space in one panel while the next cut rows.
+- **Layout.** `splitColumn` computes each panel's height in px. In this layout CSS flex wouldn't shrink a panel below its starting size (the panel inside each slot is `height: 100%`).
+- **Subway count.** It comes from MBTA route patterns on the service date, one request per station, counting each route and destination ("Red" to "Braintree"). It no longer uses `/routes` by direction, so it no longer undercounts the Ashmont and Braintree branches. The Worker passes `/mbta/route_patterns` through.
+- **Floor.** Each panel reports its least height (title plus first row, or its notes), and `splitColumn` keeps to it. CSS no longer sets it.
+
 ## Why
 
 Fixed height shares waste room. The MIT shuttles may run only a few services while the buses beside them have more rows than fit. Or the subway has more service than its share can show while the bikes panel below it sits half empty.

@@ -15,6 +15,15 @@ export interface ServiceRow {
   stopId: string;
 }
 
+/** A trip the live feed says won't stop at `stopId` (cancelled or skipped). */
+export interface CancelledStop {
+  tripId: string;
+  /** The platform, as departures give it. */
+  stopId: string;
+  /** As on departures, so the board knows which direction's timetable can't be trusted. */
+  directionKey: string;
+}
+
 export interface Stop {
   /** The MBTA parent station for subway; the stop itself otherwise. */
   id: string;
@@ -77,12 +86,16 @@ export interface TimeCell {
   label: string; live: boolean; departureTime: number;
   /** MBTA prediction status ("Stopped 5 stops away"), shown beside the countdown. */
   status?: string;
+  /** Leaves before the walk to its stop is done: shown marked, as a hurry might still catch it. */
+  missable?: boolean;
 }
 /** `stopName`, `walkMin` and `walkEstimated` are set on non-subway rows (the closest stop). */
 export interface BoardRow {
   key: string; route: RouteInfo; headsign: string;
   stopName?: string; walkMin?: number; walkEstimated?: boolean;
   times: TimeCell[];
+  /** Shown in place of times on a row with none ("No trains predicted"). */
+  note?: string;
 }
 export interface BoardGroup { header?: { name: string; walkMin: number; walkEstimated: boolean }; rows: BoardRow[] }
 export interface BoardPanel {

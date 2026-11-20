@@ -1,9 +1,9 @@
 import {
   alertsUrl, chunk, parseAlerts, parsePredictions, parseSchedules, parseServiceDestinations, parseServiceRoutes,
-  parseStops, predictionsUrl, routePatternsUrl, routesUrl, schedulesUrl, stopsUrl,
+  parseStopRoutes, parseStops, predictionsUrl, routePatternsUrl, routesUrl, schedulesUrl, stopRoutesUrl, stopsUrl,
 } from './api';
 import { serviceDate } from '../../util/time';
-import type { Alert } from '../../types';
+import type { Alert, RouteInfo } from '../../types';
 import type { Adapter, FeedScope, MbtaFeed } from '../types';
 
 const SEC = 1000;
@@ -17,7 +17,17 @@ export const mbta: Adapter<MbtaFeed, null> = {
   async candidates(feed, { cfg, fetchJson }) {
     const modes = ['subway', 'bus'] as const;
     const docs = await Promise.all(modes.map((m) => fetchJson<unknown>(stopsUrl(cfg, m, feed.walkMin[m]))));
-    return { data: null, stops: modes.flatMap((m, i) => parseStops(docs[i], m, feed.id)) };
+    const stops = modes.flatMap((m, i) => parseStops(docs[i], m, feed.id));
+    // Known here, the first alert poll can ask by route: a disruption's alert names the route, not every stop.
+    let routes: RouteInfo[] = [];
+    try {
+      const ids = stops.flatMap((s) => s.platformIds);
+      const parts = await Promise.all(chunk(ids).map(async (c) => parseStopRoutes(await fetchJson(stopRoutesUrl(cfg, c)), feed.id)));
+      routes = parts.flat();
+    } catch (e) {
+      console.warn('mbta: route lookup failed; alerts by route wait for the first predictions', e);
+    }
+    return { data: null, stops, routes };
   },
 
   polls(feed) {
@@ -29,7 +39,10 @@ export const mbta: Adapter<MbtaFeed, null> = {
           if (ids.length === 0) return undefined;
           const parts = await Promise.all(
             chunk(ids).map(async (c) => parsePredictions(await fetchJson(predictionsUrl(cfg, c)), feed.id)));
-          return { live: parts.flatMap((p) => p.departures), routes: parts.flatMap((p) => p.routes), fresh: {} };
+          return {
+            live: parts.flatMap((p) => p.departures), routes: parts.flatMap((p) => p.routes),
+            cancelled: parts.flatMap((p) => p.cancelled), fresh: {},
+          };
         },
       },
       {

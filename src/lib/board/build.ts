@@ -1,6 +1,7 @@
 import type { Discovered } from '../data/discovery';
 import type {
-  Alert, BoardGroup, BoardPanel, BoardRow, Departure, PanelStatus, RouteInfo, Source, Station, Stop, TimeCell,
+  Alert, BoardGroup, BoardPanel, BoardRow, CancelledStop, Departure, PanelStatus, RouteInfo, Source, Station, Stop,
+  TimeCell,
 } from '../types';
 import { countdownLabel } from './countdown';
 import { sourceStatus, worstStatus, type Health } from './health';
@@ -17,12 +18,21 @@ export interface BoardInput {
   hide: string[];
   /** Routes learned from realtime and schedule responses. */
   extraRoutes: RouteInfo[];
+  /** Trips each feed's live data says won't stop where scheduled. */
+  cancelled?: Partial<Record<Source, CancelledStop[]>>;
 }
 
 const MAX_TIMES = 3;
 
 /** A departure joined to its stop and route, with its countdown label. */
-interface Placed { d: Departure; stop: Stop; route: RouteInfo; label: string }
+interface Placed {
+  d: Departure; stop: Stop; route: RouteInfo; label: string;
+  /** Stands in for a disrupted direction with no live train: names the row, gives it no time. */
+  quiet?: boolean;
+}
+
+/** In place of times, where live data is cancelling the timetable and lists no train yet. */
+const NO_TRAINS = 'No trains predicted';
 
 const stopKey = (s: Stop) => `${s.source}:${s.id}`;
 const byWalk = (a: Stop, b: Stop) => a.walkSec - b.walkSec || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
@@ -49,24 +59,34 @@ const isDuplicate = (a: Placed, b: Placed) =>
   (same(a.d.tripId, b.d.tripId) || same(a.d.vehicleId, b.d.vehicleId) ||
     [a.d.tripId, b.d.tripId].some((id) => id?.startsWith('ADDED-')));
 
-/** Up to 3 reachable, de-duplicated times, plus the departure behind the first (it labels the row). */
+/**
+ * Up to 3 reachable, de-duplicated times, plus the departure behind the first (it labels the row).
+ * With none reachable, the last that leaves before the walk is done shows alone (marked): a hurry
+ * might still catch it.
+ */
 function timeCells(placed: Placed[], nowMs: number): { cells: TimeCell[]; lead?: Placed } {
+  // Compare against the walk shown on screen (rounded up), so the two never contradict.
+  const missable = (p: Placed) => p.d.departureTime - nowMs < walkMin(p.stop) * 60_000;
+  const sorted = [...placed].sort((a, b) => a.d.departureTime - b.d.departureTime);
+  const reachable = sorted.filter((p) => !missable(p));
   const shown: Placed[] = [];
-  for (const p of [...placed].sort((a, b) => a.d.departureTime - b.d.departureTime)) {
-    // Compare against the walk shown on screen (rounded up), so the two never contradict.
-    if (p.d.departureTime - nowMs < walkMin(p.stop) * 60_000) continue;
+  for (const p of reachable.length > 0 ? reachable : sorted.slice(-1)) {
     if (shown.some((s) => isDuplicate(s, p))) continue;
     shown.push(p);
     if (shown.length === MAX_TIMES) break;
   }
   const cells = shown.map((p): TimeCell => {
     const status = p.d.status?.trim();
-    return { label: p.label, live: p.d.live, departureTime: p.d.departureTime, ...(status ? { status } : {}) };
+    return {
+      label: p.label, live: p.d.live, departureTime: p.d.departureTime,
+      ...(status ? { status } : {}), ...(missable(p) ? { missable: true } : {}),
+    };
   });
   return { cells, lead: shown[0] };
 }
 
-const nextDeparture = (row: BoardRow): number => row.times[0]?.departureTime ?? Infinity;
+/** The first time one can walk to: a row with only a train that may be missed sorts last. */
+const nextDeparture = (row: BoardRow): number => row.times.find((t) => !t.missable)?.departureTime ?? Infinity;
 
 const NOTE: Partial<Record<PanelStatus, string>> = {
   'delayed': 'data delayed',
@@ -100,7 +120,7 @@ export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: A
   }
   const stopByPlatform = new Map<string, Stop>();
   for (const s of discovered.stops) for (const p of s.platformIds) stopByPlatform.set(`${s.source}:${p}`, s);
-  const stopOf = (d: Departure) => stopByPlatform.get(`${d.source}:${d.stopId}`);
+  const stopOf = (d: Pick<Departure, 'source' | 'stopId'>) => stopByPlatform.get(`${d.source}:${d.stopId}`);
 
   const place = (d: Departure): Placed | null => {
     if (hide.includes(d.routeId) || hide.includes(`${d.source}:${d.routeId}`)) return null;
@@ -122,26 +142,40 @@ export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: A
      * Trip and stop, to drop a scheduled departure whose trip live data has at the same stop
      * (in or out of the window, however late or early): it's a stale copy of that trip.
      */
-    const tripAtStop = (d: Departure) => {
+    const tripAtStop = (d: Pick<Departure, 'source' | 'stopId' | 'tripId'>) => {
       const stop = stopOf(d);
       return d.tripId !== undefined && stop ? `${d.tripId}|${stopKey(stop)}` : null;
     };
     const liveTrips = new Set(liveRaw.map(tripAtStop));
-    const scheduled = placeAll(input.scheduled[s]).filter((p) => {
+    /**
+     * Stops and directions where live data is cancelling timetabled trips: a disruption, with the
+     * trains that run added to the feed only shortly before. Their timetable lists trains that won't run.
+     */
+    const disrupted = new Set((input.cancelled?.[s] ?? []).flatMap((c) => {
+      const stop = stopOf({ source: s, stopId: c.stopId });
+      return stop ? [`${stopKey(stop)}|${c.directionKey}`] : [];
+    }));
+    const timetable = placeAll(input.scheduled[s]);
+    const scheduled = timetable.filter((p) => {
       const k = tripAtStop(p.d);
-      return k === null || !liveTrips.has(k);
+      return (k === null || !liveTrips.has(k)) && !disrupted.has(mergeKey(p));
     });
     const sched = groupBy(scheduled, mergeKey);
     for (const k of new Set([...live.keys(), ...sched.keys()])) shown.push(...(live.get(k) ?? sched.get(k)!));
+    // A disrupted direction with no live train keeps its row, saying so; the timetable gives its route and destination.
+    for (const [k, list] of groupBy(timetable.filter((p) => disrupted.has(mergeKey(p))), mergeKey)) {
+      if (!live.has(k)) shown.push({ ...list[0], quiet: true });
+    }
   }
 
   const shownStops = new Set<Stop>();
   const shownRoutes = new Set<string>();
   const makeRow = (key: string, placed: Placed[], extra: Partial<BoardRow> = {}): BoardRow | null => {
-    const { cells: times, lead } = timeCells(placed, nowMs);
-    if (!lead) return null;
+    const { cells: times, lead } = timeCells(placed.filter((p) => !p.quiet), nowMs);
+    const head = lead ?? placed.find((p) => p.quiet);
+    if (!head) return null;
     for (const p of placed) { shownStops.add(p.stop); shownRoutes.add(`${p.d.source}:${p.d.routeId}`); }
-    return { key, route: lead.route, headsign: lead.d.headsign, times, ...extra };
+    return { key, route: head.route, headsign: head.d.headsign, times, ...(lead ? {} : { note: NO_TRAINS }), ...extra };
   };
 
   /** One group per station, with a row per route and headsign. */

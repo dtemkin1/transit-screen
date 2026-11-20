@@ -1,7 +1,7 @@
 import type { Config } from '../../../config';
 import { candidateRadiusM, metresToRadiusDegrees } from '../../util/geo';
 import { gtfsTimeToEpoch, serviceDate } from '../../util/time';
-import type { Alert, Departure, Mode, RouteInfo, Source, Stop } from '../../types';
+import type { Alert, CancelledStop, Departure, Mode, RouteInfo, Source, Stop } from '../../types';
 import { workerUrl } from '../../data/worker-client';
 
 export const SHOWN_EFFECTS: readonly string[] = [
@@ -90,19 +90,33 @@ function parseRoutes(included: Resource[], source: Source): Map<string, RouteInf
   return routes;
 }
 
+interface Timed {
+  departures: Departure[];
+  routes: RouteInfo[];
+  /** Trips the feed says won't stop where scheduled; predictions list them, schedules never do. */
+  cancelled: CancelledStop[];
+}
+
 function parseTimed(
   json: unknown, live: boolean, source: Source,
-): { departures: Departure[]; routes: RouteInfo[] } {
+): Timed {
   const doc = asDoc(json);
   const included = doc.included ?? [];
   const routes = parseRoutes(included, source);
   const trips = new Map(included.filter((r) => r.type === 'trip').map((r) => [r.id, r]));
   const vehicles = new Map(included.filter((r) => r.type === 'vehicle').map((r) => [r.id, r]));
   const departures: Departure[] = [];
+  const cancelled: CancelledStop[] = [];
   for (const p of doc.data ?? []) {
     const a = p.attributes ?? {};
+    if (a.schedule_relationship === 'CANCELLED' || a.schedule_relationship === 'SKIPPED') {
+      const tripId = rel(p, 'trip');
+      const stopId = rel(p, 'stop');
+      const routeId = rel(p, 'route');
+      if (tripId && stopId && routeId) cancelled.push({ tripId, stopId, directionKey: `${routeId}:${a.direction_id}` });
+      continue;
+    }
     if (!a.departure_time) continue;
-    if (a.schedule_relationship === 'CANCELLED' || a.schedule_relationship === 'SKIPPED') continue;
     const routeId = rel(p, 'route');
     const route = routeId ? routes.get(routeId) : undefined;
     if (!route) continue;
@@ -125,7 +139,7 @@ function parseTimed(
     }
     departures.push(d);
   }
-  return { departures, routes: [...routes.values()] };
+  return { departures, routes: [...routes.values()], cancelled };
 }
 
 export function predictionsUrl(cfg: Config, platformIds: string[]): string {
@@ -139,7 +153,7 @@ export function predictionsUrl(cfg: Config, platformIds: string[]): string {
   });
 }
 
-export function parsePredictions(json: unknown, source: Source = 'mbta'): { departures: Departure[]; routes: RouteInfo[] } {
+export function parsePredictions(json: unknown, source: Source = 'mbta'): Timed {
   return parseTimed(json, true, source);
 }
 
@@ -156,6 +170,19 @@ export function routesUrl(cfg: Config, platformIds: string[], sd: string, direct
     'filter[type]': mode === 'subway' ? '0,1' : '3',
     'fields[route]': 'type',
   });
+}
+
+/** Every route serving any of `platformIds`, whatever the day. */
+export function stopRoutesUrl(cfg: Config, platformIds: string[]): string {
+  return url(cfg, 'routes', {
+    'filter[stop]': platformIds.join(','),
+    'fields[route]': 'short_name,long_name,color,text_color,type',
+  });
+}
+
+/** The board's routes in a `/routes` response; the Silver Line and other modes are left out, as from departures. */
+export function parseStopRoutes(json: unknown, source: Source = 'mbta'): RouteInfo[] {
+  return [...parseRoutes(asDoc(json).data ?? [], source).values()];
 }
 
 /** The route patterns serving any of `platformIds` on service date `sd`, with each one's route type and destination. */

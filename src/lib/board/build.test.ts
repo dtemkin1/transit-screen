@@ -115,17 +115,34 @@ describe('buildBoard: subway', () => {
     expect(panel(panels, 'subway')!.title).toBe('Subway');
   });
 
-  it('drops departures you cannot walk to in time', () => {
+  it('leaves out departures you cannot walk to in time when there are others', () => {
     // Kendall walk is 600 s: 2 and 5 min are unreachable.
     const { panels } = buildBoard(input({
       live: withLive([2, 5, 12, 20, 30].map((min) => red('70071', { min }))),
     }));
     const times = panel(panels, 'subway')!.groups[0].rows[0].times;
     expect(mins(times)).toEqual([12, 20, 30]);
+    expect(times.some((t) => t.missable)).toBe(false);
+  });
+
+  it('with nothing reachable, shows the last train you may miss, marked, and no other', () => {
+    const { panels } = buildBoard(input({
+      live: withLive([2, 7].map((min) => red('70072', { min, dir: '1' }))),
+    }));
+    const times = panel(panels, 'subway')!.groups[0].rows[0].times;
+    expect(mins(times)).toEqual([7]);
+    expect(times[0].missable).toBe(true);
+  });
+
+  it('sorts a bus row with only a bus you may miss after the rows you can catch', () => {
+    const { panels } = buildBoard(input({
+      live: withLive([bus1('1001', { min: 1 }), dep('mbta', 'bus', '64', '1002')({ min: 30, headsign: 'Oak Sq' })]),
+    }));
+    expect(panel(panels, 'bus')!.groups[0].rows.map((r) => r.key)).toEqual(['mbta:64:0', 'mbta:1:0']);
   });
 
   it('a row is labelled by the first departure shown, not an unreachable earlier one', () => {
-    // Stop 1001 is a 2 min walk: the 1-min "Harvard" bus is dropped, so the row is the 12-min "Harvard via Mass Ave".
+    // Stop 1001 is a 2 min walk: the 1-min "Harvard" bus is left out, so the row is the 12-min "Harvard via Mass Ave".
     const { panels } = buildBoard(input({
       live: withLive([bus1('1001', { min: 1 }), bus1('1001', { min: 12, headsign: 'Harvard via Mass Ave' })]),
     }));
@@ -167,6 +184,19 @@ describe('buildBoard: subway', () => {
     expect(mins(panel(panels, 'subway')!.groups[0].rows[0].times)).toEqual([17]);
   });
 
+  it('does not fall back to the schedule where live data is cancelling its trips (a disruption)', () => {
+    const { panels } = buildBoard(input({
+      scheduled: withLive([red('70072', { min: 14, dir: '1', live: false, trip: 'gone' }),
+        red('70072', { min: 22, dir: '1', live: false, trip: 'later' }),
+        red('70071', { min: 15, dir: '0', live: false, trip: 'south', headsign: 'Braintree' })]),
+      cancelled: { mbta: [{ tripId: 'gone', stopId: '70072', directionKey: 'Red:1' }] },
+    }));
+    const rows = panel(panels, 'subway')!.groups[0].rows;
+    expect(rows.map((r) => r.headsign)).toEqual(['Alewife', 'Braintree']);
+    expect(rows[0]).toMatchObject({ times: [], note: 'No trains predicted' });
+    expect(mins(rows[1].times)).toEqual([15]);
+  });
+
   it('keeps an MBTA status beside the countdown instead of replacing it', () => {
     const { panels } = buildBoard(input({
       live: withLive([red('70071', { min: 20, status: 'Stopped 5 stops away' })]),
@@ -180,13 +210,13 @@ describe('buildBoard: subway', () => {
     expect(mins(panel(panels, 'subway')!.groups[0].rows[0].times)).toEqual([10]);
   });
 
-  it('reachability uses the walk minutes shown, so no "3 min" bus appears beside a "4 min walk"', () => {
+  it('reachability uses the walk minutes shown, so a "3 min" bus beside a "4 min walk" is marked', () => {
     // Stop 1002 is 200 s away, shown as a 4 min walk.
-    const at = (min: number) => buildBoard(input({
+    const at = (min: number) => panel(buildBoard(input({
       live: withLive([dep('mbta', 'bus', '64', '1002')({ min, headsign: 'Oak Sq' })]),
-    }));
-    expect(panel(at(3.5).panels, 'bus')).toBeUndefined();
-    expect(mins(panel(at(4).panels, 'bus')!.groups[0].rows[0].times)).toEqual([4]);
+    })).panels, 'bus')!.groups[0].rows[0].times[0];
+    expect(at(3.5).missable).toBe(true);
+    expect(at(4).missable).toBeUndefined();
   });
 
   it('drops departures outside the 60-minute window', () => {

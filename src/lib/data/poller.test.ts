@@ -149,6 +149,21 @@ describe('poller', () => {
     expect(h.count('/mbta/route_patterns')).toBe(2);
   });
 
+  it('keeps the trips live predictions mark cancelled, replacing them each poll', async () => {
+    const cancelledDoc = (trip: string) => ({ data: [{ id: 'p', type: 'prediction',
+      attributes: { departure_time: null, direction_id: 1, schedule_relationship: 'CANCELLED' },
+      relationships: { route: { data: { id: 'Red', type: 'route' } }, trip: { data: { id: trip, type: 'trip' } },
+        stop: { data: { id: '70072', type: 'stop' } } } }] });
+    let trip = 'a';
+    const h = harness({ ...ok, '/mbta/predictions': () => cancelledDoc(trip) });
+    h.poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.poller.state.cancelled.mbta).toEqual([{ tripId: 'a', stopId: '70072', directionKey: 'Red:1' }]);
+    trip = 'b';
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(h.poller.state.cancelled.mbta).toEqual([{ tripId: 'b', stopId: '70072', directionKey: 'Red:1' }]);
+  });
+
   it('dedupes merged alerts by id', async () => {
     const h = harness(ok);
     h.poller.start();

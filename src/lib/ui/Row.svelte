@@ -47,13 +47,17 @@
   </div>
   {#if next}
     <div class="times">
-      <span class="next" class:scheduled={!next.live}>
-        {#if nextMin !== undefined}{nextMin}<small> min</small>{:else}{next.label}{/if}
+      <!-- A time that may be missed only ever shows alone (build.ts), so only the first is checked. -->
+      <span class="next" class:scheduled={!next.live} class:missable={next.missable}>
+        {#if nextMin !== undefined}{nextMin}<small> min</small>{:else}{next.label}{/if}{#if next.missable}<span
+            class="mark" aria-hidden="true">*</span><span class="visually-hidden"> (may leave before you can walk there)</span>{/if}
       </span>
       {#if later.length > 0}
         <span class="later" class:scheduled={later.some((t) => !t.live)}>then {laterText}</span>
       {/if}
     </div>
+  {:else if row.note}
+    <span class="note">{row.note}</span>
   {/if}
 </div>
 
@@ -119,5 +123,17 @@
   .scheduled {
     font-style: italic;
     color: var(--muted);
+  }
+  /* A train that leaves before the walk is done: quieter than the times one can catch, and starred. */
+  .missable {
+    color: var(--muted);
+  }
+  .mark {
+    margin-left: 0.05em;
+  }
+  .note {
+    font-size: 0.76em;
+    color: var(--muted);
+    white-space: nowrap;
   }
 </style>

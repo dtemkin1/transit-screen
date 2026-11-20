@@ -53,7 +53,7 @@ Settings live in `src/config.ts` (`defaultConfig`). The board can override some 
 | `name` | `?name=Stata%20Center` | Building name shown beside the number. |
 | `palette` | `?palette=apricot` | Frame color: an SA+P color (`apricot`, `yellow`, `pink`, `blue`, `orange`, `green`), `rotate` through them daily (default), or `mit` (black with MIT red accents). |
 | `inset` | `?inset=3` | Margin, in % of the screen's shorter side (0-10), for TVs that crop the edges (overscan). Default 0. |
-| `priority` | `?priority=shuttle,subway` | Which panels matter most, most important first (`subway`, `bus`, `shuttle`, `bikes`). The highest in each column gets its spare room and gives up the least when the column is short; on a screen too short for all of them the lowest go first. Panels left out follow in the default order: Red Line, buses, shuttles, Bluebikes. |
+| `priority` | `?priority=shuttle,subway` | Which panels matter most, most important first (`subway`, `bus`, `shuttle`, `bikes`). The highest in each column gets the column's spare room and gives up the least when the column is short. On a screen too short for every panel, the lowest are hidden first. Panels left out follow in the default order: Red Line, buses, shuttles, Bluebikes. |
 | `pin`, `hide` | `?hide=2168,mbta:70` | Comma-separated ids to pin or hide; see `pin` and `hide` below. |
 
 Other `Config` fields are set in code only (`src/config.ts`):
@@ -66,13 +66,15 @@ Other `Config` fields are set in code only (`src/config.ts`):
 
 ### What the board shows
 
-- Each row shows the next departure you can still walk to in time, then up to two more. Trains or buses leaving sooner than the walk are left out, and the same vehicle reported twice within a minute (a repeated trip, a loop bus on back-to-back trips, or an MBTA "added" trip) is shown once.
+- Each row shows the next departure you can still walk to in time, then up to two more. Those leaving sooner than the walk are left out. If a row has nothing else, it shows the last of them alone, marked `*` and set lighter, since you might still catch it by hurrying. That row sorts after the others. The same vehicle reported twice within a minute (a repeated trip, a loop bus on back-to-back trips, or an MBTA "added" trip) is shown once.
 - Times in italics come from the schedule (live data for that service is missing). The rest are live predictions.
+- The line at the bottom explains italics and `*` only while a row has such a time (a row a short panel cuts still counts), and keeps its height when empty so the panels don't move. It stays on one line: when it runs out of room, the hidden-panel note is cut first.
+- Where MBTA's live data is cancelling timetabled trips (a planned disruption: the trains that do run appear in the feed only a few minutes ahead), the board doesn't fall back to the timetable for that stop and direction. With no live train listed, the row says "No trains predicted".
 - MBTA status messages ("Stopped 5 stops away") appear in the accent color (SA+P burgundy, or MIT Red) under the destination.
 - Long names are shortened the way MBTA signs shorten them (Massachusetts → Mass, Avenue → Ave, Square → Sq, and → &; the list is in `src/lib/ui/format.ts`). A destination's "via …" part is set lighter, so when a row is cut it loses the route description, never the destination.
 - Text that doesn't fit is cut between whole words, never inside one, with "…" and no dangling "&", "to" or "via" (`src/lib/ui/fit.ts`). A walk time ("2 min walk") is never split: the stop name shortens first. A shuttle row that can't fit its route name and destination shows the destination alone, since the badge names the route. Screen readers still get the full text.
 - The building name is never cut: it shrinks to fit (`src/lib/ui/shrink.ts`), down to the size of body text, and below that wraps between words.
-- Each panel gets room for as many rows as its service could show today (`src/lib/board/size.ts`). Spare room goes to the column's highest-priority panel; in a column too short for every panel's rows, lower-priority panels give up more. The count is for the whole service day, taken at load, so borders stay put as departures come and go.
+- Each panel gets room for as many rows as its service could show today (`src/lib/board/size.ts`). Spare room goes to the column's highest-priority panel that has something to show; in a column too short for every panel's rows, lower-priority panels give up more. The count is for the whole service day, so borders stay put as departures come and go.
 - Every panel shown has room for at least one row. On a screen too short for that (a phone held sideways, a small window), the lowest-priority panel in the column that ran short is hidden (`priority` above), and the line at the bottom says which: "Bluebikes hidden: screen too short." More room brings them back.
 - Alerts are screened for profanity, since people type them. A flagged alert isn't shown; see [Wording filter](#wording-filter).
 - MIT shuttle rows lead with the route name ("Tech Shuttle to Kendall Square T"), since riders know shuttles by route. Routes Passio marks "out of service" are never shown.
@@ -95,6 +97,7 @@ On the dev server (`npm run dev`), add one of these to the URL to see sample dat
 
 - `?demo`: every state the board can show (an alert, MBTA status text, a delayed feed, a schedule fallback, long names, a shuttle badge color with no text color).
 - `?demo=outage`: the "Live data unavailable" panels.
+- `?demo=disruption`: a Red Line direction whose timetabled trips MBTA is cancelling, with no live train listed ("No trains predicted").
 - `?demo=loading`: the startup screen.
 - `?demo=failing`: the message shown when the transit data service can't be reached.
 

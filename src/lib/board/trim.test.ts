@@ -21,6 +21,14 @@ const sample = () => panel([
 ]);
 
 describe('trimPanel', () => {
+  it('drops a row with only a train that may be missed before rows one can walk to', () => {
+    const p = panel([{ rows: [
+      row('a', [{ ...cell(2), missable: true }]),
+      row('b', [cell(40)]),
+    ] }]);
+    expect(shape(trimPanel(p, 1))).toEqual([['b:40']]);
+  });
+
   it('leaves a panel that fits untouched', () => {
     const p = sample();
     expect(trimPanel(p, 6)).toEqual(p);

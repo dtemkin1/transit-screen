@@ -6,7 +6,7 @@ import { adapterFor } from '../feeds';
 import type { FeedConfig, FeedIO, FeedScope, FeedUpdate } from '../feeds/types';
 import { isIndecent } from '../util/decency';
 import { msUntilNext } from '../util/time';
-import type { Alert, Departure, RouteInfo, ServiceRow, Source, Station } from '../types';
+import type { Alert, CancelledStop, Departure, RouteInfo, ServiceRow, Source, Station } from '../types';
 import { fetchBytes, fetchJson, reportHiddenAlert } from './worker-client';
 
 export interface PollerDeps {
@@ -31,6 +31,8 @@ export interface PollerState {
   extraRoutes: RouteInfo[];
   /** Rows each feed could show today; a feed missing here hasn't reported, so sizing falls back. */
   service: Partial<Record<Source, ServiceRow[]>>;
+  /** Trips each feed's latest live data says won't stop where scheduled. */
+  cancelled: Partial<Record<Source, CancelledStop[]>>;
   now: number;
   /** Failed or empty discoveries in a row, before the first success. */
   discoveryFailures: number;
@@ -80,6 +82,7 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
     stations: [],
     extraRoutes: [],
     service: {},
+    cancelled: {},
     discoveryFailures: 0,
     now: deps.now(),
   });
@@ -132,6 +135,7 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
     if (u.live) state.live[feed.id] = u.live;
     if (u.scheduled) state.scheduled[feed.id] = u.scheduled;
     if (u.service) state.service[feed.id] = u.service;
+    if (u.cancelled) state.cancelled[feed.id] = u.cancelled;
     if (u.routes) {
       routesByPoll.set(poll, u.routes);
       state.extraRoutes = dedupeBy([...routesByPoll.values()].flat(), keyOf);

@@ -50,13 +50,34 @@ describe('stops', () => {
 });
 
 describe('mbta adapter', () => {
+  const RED_AND_1 = { data: [
+    { id: 'Red', type: 'route', attributes: { type: 1, long_name: 'Red Line', short_name: '', color: 'DA291C', text_color: 'FFFFFF' } },
+    { id: '1', type: 'route', attributes: { type: 3, long_name: 'Harvard - Nubian', short_name: '1', color: 'FFC72C', text_color: '000000' } },
+  ] };
+  const stopsOrRoutes = (routes: () => unknown) => vi.fn(async (url: string) =>
+    url.includes('/mbta/routes') ? routes() : url.includes('route_type]=3') ? stopsBus : stopsSubway);
+
   it('discovers subway and bus stops, each within its own walk limit', async () => {
-    const fetchJson = vi.fn(async (url: string) => (url.includes('route_type%5D=3') || url.includes('route_type]=3') ? stopsBus : stopsSubway));
+    const fetchJson = stopsOrRoutes(() => RED_AND_1);
     const c = await mbta.candidates(FEED, { cfg, fetchJson: fetchJson as never, fetchBytes: vi.fn() });
     expect(c.stops!.filter((s) => s.mode === 'subway')).toHaveLength(2);
     expect(c.stops!.filter((s) => s.mode === 'bus')).toHaveLength(3);
-    expect(fetchJson).toHaveBeenCalledTimes(2);
-    expect(fetchJson.mock.calls.map(([u]) => u)).toEqual([stopsUrl(cfg, 'subway', 15), stopsUrl(cfg, 'bus', 7)]);
+    expect(fetchJson.mock.calls.slice(0, 2).map(([u]) => u)).toEqual([stopsUrl(cfg, 'subway', 15), stopsUrl(cfg, 'bus', 7)]);
+  });
+
+  it('discovers the routes at those stops, so the first alert poll can ask by route', async () => {
+    const fetchJson = stopsOrRoutes(() => RED_AND_1);
+    const c = await mbta.candidates(FEED, { cfg, fetchJson: fetchJson as never, fetchBytes: vi.fn() });
+    expect(c.routes!.map((r) => [r.id, r.mode])).toEqual([['Red', 'subway'], ['1', 'bus']]);
+    const asked = fetchJson.mock.calls.map(([u]) => u).find((u) => u.includes('/mbta/routes'))!;
+    expect(asked).toMatch(/filter\[stop\]=[^&]*\b70071\b/);
+  });
+
+  it('still discovers stops when the routes request fails', async () => {
+    const fetchJson = stopsOrRoutes(() => { throw new Error('upstream'); });
+    const c = await mbta.candidates(FEED, { cfg, fetchJson: fetchJson as never, fetchBytes: vi.fn() });
+    expect(c.stops!.length).toBe(5);
+    expect(c.routes).toEqual([]);
   });
 
   it('lists today\'s subway destinations per station and bus routes by direction, for sizing', async () => {
@@ -134,6 +155,27 @@ describe('routes', () => {
       { id: 'CR-Fitchburg', type: 'route', attributes: { type: 2 } },
     ] };
     expect(parseServiceRoutes(doc)).toEqual([{ id: 'Red', mode: 'subway' }, { id: '1', mode: 'bus' }]);
+  });
+});
+
+describe('cancelled predictions', () => {
+  it('lists trips cancelled or skipped at a stop, apart from departures', () => {
+    const pred = (trip: string, stop: string, rel: string | null, time: string | null) => ({
+      id: `p-${trip}`, type: 'prediction',
+      attributes: { departure_time: time, direction_id: 1, schedule_relationship: rel },
+      relationships: { route: { data: { id: 'Red', type: 'route' } }, trip: { data: { id: trip, type: 'trip' } },
+        stop: { data: { id: stop, type: 'stop' } } },
+    });
+    const doc = {
+      data: [pred('81003053', '70072', 'CANCELLED', null), pred('s1', '70072', 'SKIPPED', null),
+        pred('ADDED-1', '70072', 'ADDED', '2026-11-20T11:03:21-05:00')],
+      included: [{ id: 'Red', type: 'route', attributes: { type: 1, long_name: 'Red Line', color: 'DA291C', text_color: 'FFFFFF' } }],
+    };
+    const parsed = parsePredictions(doc);
+    expect(parsed.cancelled).toEqual([
+      { tripId: '81003053', stopId: '70072', directionKey: 'Red:1' }, { tripId: 's1', stopId: '70072', directionKey: 'Red:1' },
+    ]);
+    expect(parsed.departures.map((d) => d.tripId)).toEqual(['ADDED-1']);
   });
 });
 

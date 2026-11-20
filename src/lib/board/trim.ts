@@ -9,7 +9,8 @@ const compact = (groups: BoardGroup[]): BoardGroup[] =>
     .map((g) => ({ ...g, rows: g.rows.filter((r) => r.times.length > 0) }))
     .filter((g) => g.rows.length > 0);
 
-const nextDeparture = (r: BoardRow) => r.times[0]?.departureTime ?? Infinity;
+/** The first time one can walk to, as the board orders rows: a row with only a train that may be missed goes first. */
+const nextDeparture = (r: BoardRow) => r.times.find((t) => !t.missable)?.departureTime ?? Infinity;
 
 // Fits a panel to `maxLines` (a header counts `headerWeight`) by dropping whole rows,
 // furthest next departure first; emptied groups go with their headers.
