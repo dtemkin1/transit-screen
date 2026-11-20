@@ -109,7 +109,9 @@ function parseTimed(
   const cancelled: CancelledStop[] = [];
   for (const p of doc.data ?? []) {
     const a = p.attributes ?? {};
-    if (a.schedule_relationship === 'CANCELLED' || a.schedule_relationship === 'SKIPPED') {
+    /** A prediction with no times and no status also won't make the stop (MBTA developer best practices). */
+    const noStop = live && !a.departure_time && !a.arrival_time && !a.status;
+    if (a.schedule_relationship === 'CANCELLED' || a.schedule_relationship === 'SKIPPED' || noStop) {
       const tripId = rel(p, 'trip');
       const stopId = rel(p, 'stop');
       const routeId = rel(p, 'route');

@@ -6,6 +6,7 @@ import { adapterFor } from '../feeds';
 import type { FeedConfig, FeedIO, FeedScope, FeedUpdate } from '../feeds/types';
 import { isIndecent } from '../util/decency';
 import { msUntilNext } from '../util/time';
+import { steadyTimes } from './steady';
 import type { Alert, CancelledStop, Departure, RouteInfo, ServiceRow, Source, Station } from '../types';
 import { fetchBytes, fetchJson, reportHiddenAlert } from './worker-client';
 
@@ -124,6 +125,8 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
     state.health[source] = { lastOk: t === undefined ? now : Math.min(now, (t + (seconds(validForSec) ?? 0)) * 1000) };
   };
 
+  /** Each feed's live departure times as last shown, per trip and stop (see steadyTimes). */
+  const keptTimes = new Map<Source, Map<string, number>>();
   /** Each poll's latest routes; state holds their deduped union. */
   const routesByPoll = new Map<string, RouteInfo[]>();
   /** Hidden alerts already reported. */
@@ -132,7 +135,11 @@ export function createPoller(cfg: Config, overrides: Partial<PollerDeps> = {}) {
   const alertsByPoll = new Map<string, Alert[]>();
 
   function apply(feed: FeedConfig, poll: string, u: FeedUpdate) {
-    if (u.live) state.live[feed.id] = u.live;
+    if (u.live) {
+      const steady = steadyTimes(keptTimes.get(feed.id) ?? new Map(), u.live);
+      keptTimes.set(feed.id, steady.kept);
+      state.live[feed.id] = steady.departures;
+    }
     if (u.scheduled) state.scheduled[feed.id] = u.scheduled;
     if (u.service) state.service[feed.id] = u.service;
     if (u.cancelled) state.cancelled[feed.id] = u.cancelled;

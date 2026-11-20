@@ -159,6 +159,18 @@ describe('routes', () => {
 });
 
 describe('cancelled predictions', () => {
+  it('counts a prediction with no times and no status as one that won\'t stop (MBTA best practices)', () => {
+    const p = (trip: string, status?: string) => ({
+      id: `p-${trip}`, type: 'prediction',
+      attributes: { departure_time: null, arrival_time: null, direction_id: 0, schedule_relationship: null, ...(status ? { status } : {}) },
+      relationships: { route: { data: { id: 'Red', type: 'route' } }, trip: { data: { id: trip, type: 'trip' } },
+        stop: { data: { id: '70071', type: 'stop' } } },
+    });
+    const doc = { data: [p('skips'), p('boarding', 'All aboard')],
+      included: [{ id: 'Red', type: 'route', attributes: { type: 1, long_name: 'Red Line', color: 'DA291C', text_color: 'FFFFFF' } }] };
+    expect(parsePredictions(doc).cancelled).toEqual([{ tripId: 'skips', stopId: '70071', directionKey: 'Red:0' }]);
+  });
+
   it('lists trips cancelled or skipped at a stop, apart from departures', () => {
     const pred = (trip: string, stop: string, rel: string | null, time: string | null) => ({
       id: `p-${trip}`, type: 'prediction',

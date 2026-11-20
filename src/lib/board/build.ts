@@ -60,9 +60,8 @@ const isDuplicate = (a: Placed, b: Placed) =>
     [a.d.tripId, b.d.tripId].some((id) => id?.startsWith('ADDED-')));
 
 /**
- * Up to 3 reachable, de-duplicated times, plus the departure behind the first (it labels the row).
- * With none reachable, the last that leaves before the walk is done shows alone (marked): a hurry
- * might still catch it.
+ * Up to 3 reachable, de-duplicated times and the departure behind the first (it labels the row).
+ * With none reachable, the last one you'd miss shows alone, marked.
  */
 function timeCells(placed: Placed[], nowMs: number): { cells: TimeCell[]; lead?: Placed } {
   // Compare against the walk shown on screen (rounded up), so the two never contradict.

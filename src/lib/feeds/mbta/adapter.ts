@@ -33,7 +33,7 @@ export const mbta: Adapter<MbtaFeed, null> = {
   polls(feed) {
     return [
       {
-        name: 'predictions', everyMs: 20 * SEC,
+        name: 'predictions', everyMs: 15 * SEC,
         async run(scope, { cfg, fetchJson }) {
           const ids = platformIds(scope);
           if (ids.length === 0) return undefined;

@@ -90,7 +90,7 @@ afterEach(() => {
 });
 
 describe('poller', () => {
-  it('polls MBTA predictions every 20s', async () => {
+  it('polls MBTA predictions every 15s', async () => {
     const h = harness(ok);
     h.poller.start();
     await vi.advanceTimersByTimeAsync(0);
@@ -99,11 +99,11 @@ describe('poller', () => {
     expect(h.poller.state.health.mbta.lastOk).toBe(START);
     expect(h.poller.state.extraRoutes.length).toBeGreaterThan(0);
 
-    await vi.advanceTimersByTimeAsync(19_999);
+    await vi.advanceTimersByTimeAsync(14_999);
     expect(h.count('/mbta/predictions')).toBe(1);
     await vi.advanceTimersByTimeAsync(1);
     expect(h.count('/mbta/predictions')).toBe(2);
-    await vi.advanceTimersByTimeAsync(20_000);
+    await vi.advanceTimersByTimeAsync(15_000);
     expect(h.count('/mbta/predictions')).toBe(3);
     h.poller.stop();
   });
@@ -149,6 +149,22 @@ describe('poller', () => {
     expect(h.count('/mbta/route_patterns')).toBe(2);
   });
 
+  it('holds a live time steady while its prediction moves by less than 30 s', async () => {
+    let at = '2026-11-17T12:04:00-05:00';
+    const doc = () => ({
+      data: [{ id: 'p', type: 'prediction', attributes: { departure_time: at, direction_id: 0, schedule_relationship: null },
+        relationships: { route: { data: { id: 'Red', type: 'route' } }, trip: { data: { id: 't1', type: 'trip' } },
+          stop: { data: { id: '70071', type: 'stop' } } } }],
+      included: [{ id: 'Red', type: 'route', attributes: { type: 1, long_name: 'Red Line', color: 'DA291C', text_color: 'FFFFFF' } }],
+    });
+    const h = harness({ ...ok, '/mbta/predictions': doc });
+    h.poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    at = '2026-11-17T12:04:10-05:00';
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(h.poller.state.live.mbta[0].departureTime).toBe(Date.parse('2026-11-17T12:04:00-05:00'));
+  });
+
   it('keeps the trips live predictions mark cancelled, replacing them each poll', async () => {
     const cancelledDoc = (trip: string) => ({ data: [{ id: 'p', type: 'prediction',
       attributes: { departure_time: null, direction_id: 1, schedule_relationship: 'CANCELLED' },
@@ -191,15 +207,15 @@ describe('poller', () => {
     const before = h.poller.state.live.mbta.length;
     expect(before).toBeGreaterThan(0);
     fail = true;
-    await vi.advanceTimersByTimeAsync(20_000);
+    await vi.advanceTimersByTimeAsync(15_000);
     expect(h.count('/mbta/predictions')).toBe(2);
     expect(h.poller.state.live.mbta).toHaveLength(before);
     expect(h.poller.state.health.mbta.lastOk).toBe(START);
     expect(console.warn).toHaveBeenCalled();
     fail = false;
-    await vi.advanceTimersByTimeAsync(20_000);
+    await vi.advanceTimersByTimeAsync(15_000);
     expect(h.count('/mbta/predictions')).toBe(3);
-    expect(h.poller.state.health.mbta.lastOk).toBe(START + 40_000);
+    expect(h.poller.state.health.mbta.lastOk).toBe(START + 30_000);
     h.poller.stop();
   });
 
@@ -213,7 +229,7 @@ describe('poller', () => {
     expect(h.poller.state.scheduled.mbta.length).toBeGreaterThan(0);
     await vi.advanceTimersByTimeAsync(60_000);
     expect(h.count(STATUS_URL)).toBe(2);
-    expect(h.count('/mbta/predictions')).toBe(4);
+    expect(h.count('/mbta/predictions')).toBe(5);
     h.poller.stop();
   });
 
@@ -281,7 +297,7 @@ describe('poller', () => {
     expect(h.count('/mbta/predictions')).toBe(1);
     release();
     await vi.advanceTimersByTimeAsync(0);
-    await vi.advanceTimersByTimeAsync(20_000);
+    await vi.advanceTimersByTimeAsync(15_000);
     expect(h.count('/mbta/predictions')).toBe(2);
     h.poller.stop();
   });
@@ -586,7 +602,7 @@ describe('error resilience', () => {
     await vi.advanceTimersByTimeAsync(60_000);
     expect(h.discover).toHaveBeenCalledTimes(2);
     expect(h.count('/mbta/predictions')).toBe(1);
-    await vi.advanceTimersByTimeAsync(20_000);
+    await vi.advanceTimersByTimeAsync(15_000);
     expect(h.count('/mbta/predictions')).toBe(2);
     h.poller.stop();
   });

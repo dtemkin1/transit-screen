@@ -74,9 +74,8 @@ export interface ColumnItem {
 }
 
 /**
- * Each panel's height in a column `height` px tall with `gap` px between panels, or null when even the
- * floors don't fit. Spare room goes by `grow`; a shortfall comes off by start × `shrink`, no panel
- * going below its floor (the same resolution as CSS flex, done here so it can be tested).
+ * Panel heights in a column `height` px tall with `gap` between, or null when the floors don't fit. Like CSS
+ * flex, which wouldn't shrink a panel below its start here: spare room by `grow`, a shortfall by start × `shrink`.
  */
 export function splitColumn(height: number, gap: number, items: readonly ColumnItem[]): number[] | null {
   const room = height - gap * Math.max(items.length - 1, 0);
