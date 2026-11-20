@@ -74,6 +74,5 @@
   }
   .closed {
     color: var(--muted);
-    font-style: italic;
   }
 </style>

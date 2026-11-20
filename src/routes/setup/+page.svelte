@@ -492,8 +492,24 @@
     min-height: 2.75rem;
     display: flex;
     align-items: center;
+    gap: 0.5rem;
     cursor: pointer;
     font-weight: 700;
+  }
+  summary::before {
+    content: '';
+    flex: none;
+    border-block: 0.32em solid transparent;
+    border-inline-start: 0.5em solid currentColor;
+    transition: transform 0.15s;
+  }
+  details[open] > summary::before {
+    transform: rotate(90deg);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    summary::before {
+      transition: none;
+    }
   }
   details[open] > summary {
     margin-bottom: 0.3rem;

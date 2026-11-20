@@ -29,6 +29,15 @@ describe('trimPanel', () => {
     expect(shape(trimPanel(p, 1))).toEqual([['b:40']]);
   });
 
+  it('keeps a "No trains predicted" row, dropping rows with times before it', () => {
+    const p = sample();
+    p.groups[1].rows.push({ ...row('n', []), note: 'No trains predicted' });
+    // 2 headers + 5 rows: c (45) goes first, then d (30) and b (15); the note row stays.
+    expect(shape(trimPanel(p, 6))).toEqual([['a:12,20', 'b:15,25,35'], ['d:30,40', 'n:']]);
+    expect(shape(trimPanel(p, 4))).toEqual([['a:12,20'], ['n:']]);
+    expect(trimPanel(p, 1).groups).toEqual([]);
+  });
+
   it('leaves a panel that fits untouched', () => {
     const p = sample();
     expect(trimPanel(p, 6)).toEqual(p);
