@@ -5,7 +5,8 @@ import type { MbtaFeed } from '../types';
 import { metresToRadiusDegrees } from '../../util/geo';
 import {
   SHOWN_EFFECTS, alertsUrl, chunk, parseAlerts, parsePredictions, parseSchedules,
-  parseStops, predictionsUrl, schedulesUrl, stopsUrl,
+  parseServiceDestinations, parseServiceRoutes, parseStops, predictionsUrl, routePatternsUrl, routesUrl, schedulesUrl,
+  stopsUrl,
 } from './api';
 import stopsSubway from '../../../test/fixtures/mbta-stops-subway.json';
 import stopsBus from '../../../test/fixtures/mbta-stops-bus.json';
@@ -56,6 +57,83 @@ describe('mbta adapter', () => {
     expect(c.stops!.filter((s) => s.mode === 'bus')).toHaveLength(3);
     expect(fetchJson).toHaveBeenCalledTimes(2);
     expect(fetchJson.mock.calls.map(([u]) => u)).toEqual([stopsUrl(cfg, 'subway', 15), stopsUrl(cfg, 'bus', 7)]);
+  });
+
+  it('lists today\'s subway destinations per station and bus routes by direction, for sizing', async () => {
+    const poll = mbta.polls(FEED).find((p) => p.name === 'service')!;
+    expect(poll.everyMs).toBe(600_000);
+    const route = (id: string, type: number) => ({ data: [{ id, type: 'route', attributes: { type } }] });
+    const fetchJson = vi.fn(async (url: string) => (url.includes('route_patterns') ? RED_PATTERNS : route('1', 3)));
+    const stop = (id: string, mode: 'subway' | 'bus', platformIds: string[]) =>
+      ({ id, source: 'mbta', mode, name: id, lat: 0, lon: 0, platformIds, walkSec: 0, walkEstimated: false });
+    const scope = {
+      data: null, stations: [], routes: [],
+      stops: [stop('place-knncl', 'subway', ['70071', '70072']), stop('2231', 'bus', ['2231'])],
+    };
+    const u = await poll.run(scope, { cfg, fetchJson: fetchJson as never, fetchBytes: vi.fn() }, NOW);
+    expect(u!.service).toEqual(expect.arrayContaining([
+      { mode: 'subway', key: 'Red:Braintree', routeId: 'Red', stopId: 'place-knncl' },
+      { mode: 'subway', key: 'Red:Ashmont', routeId: 'Red', stopId: 'place-knncl' },
+      { mode: 'subway', key: 'Red:Alewife', routeId: 'Red', stopId: 'place-knncl' },
+      { mode: 'bus', key: '1:0', routeId: '1', stopId: '' },
+      { mode: 'bus', key: '1:1', routeId: '1', stopId: '' },
+    ]));
+    expect(u!.service).toHaveLength(5);
+    expect(fetchJson).toHaveBeenCalledTimes(3);
+  });
+});
+
+/** Red Line patterns at Kendall/MIT on a weekday: two to Alewife (from each branch), one to each branch. */
+const RED_PATTERNS = {
+  data: [0, 1, 2, 3].map((i) => ({
+    id: `Red-${i}`, type: 'route_pattern',
+    relationships: { route: { data: { id: 'Red', type: 'route' } }, representative_trip: { data: { id: `t${i}`, type: 'trip' } } },
+  })),
+  included: [
+    { id: 'Red', type: 'route', attributes: { type: 1 } },
+    ...['Braintree', 'Ashmont', 'Alewife', 'Alewife'].map((h, i) => ({ id: `t${i}`, type: 'trip', attributes: { headsign: h } })),
+  ],
+};
+
+describe('route patterns', () => {
+  it('asks for the patterns at the given stops on the service date, with route and headsign', () => {
+    const url = routePatternsUrl(cfg, ['70071', '70072'], '20261123');
+    expect(url).toContain('/mbta/route_patterns?');
+    expect(url).toContain('filter[stop]=70071,70072');
+    expect(url).toContain('filter[date]=2026-11-23');
+    expect(url).toContain('include=route,representative_trip');
+  });
+  it('gives each route and destination once, without the Silver Line', () => {
+    const sl = {
+      data: [...RED_PATTERNS.data, { id: 'SL', type: 'route_pattern', relationships: {
+        route: { data: { id: '742', type: 'route' } }, representative_trip: { data: { id: 'sl', type: 'trip' } } } }],
+      included: [...RED_PATTERNS.included, { id: '742', type: 'route', attributes: { type: 3 } },
+        { id: 'sl', type: 'trip', attributes: { headsign: 'Logan' } }],
+    };
+    expect(parseServiceDestinations(sl)).toEqual([
+      { id: 'Red', mode: 'subway', headsign: 'Braintree' },
+      { id: 'Red', mode: 'subway', headsign: 'Ashmont' },
+      { id: 'Red', mode: 'subway', headsign: 'Alewife' },
+    ]);
+  });
+});
+
+describe('routes', () => {
+  it('asks for one direction at the given stops on the service date', () => {
+    const url = routesUrl(cfg, ['70071', '70072'], '20261121', 1, 'subway');
+    expect(url).toContain('filter[stop]=70071,70072');
+    expect(url).toContain('filter[date]=2026-11-21');
+    expect(url).toContain('filter[direction_id]=1');
+    expect(url).toContain('filter[type]=0,1');
+  });
+  it('keeps subway and bus routes, without the Silver Line or other modes', () => {
+    const doc = { data: [
+      { id: 'Red', type: 'route', attributes: { type: 1 } },
+      { id: '1', type: 'route', attributes: { type: 3 } },
+      { id: '742', type: 'route', attributes: { type: 3 } },
+      { id: 'CR-Fitchburg', type: 'route', attributes: { type: 2 } },
+    ] };
+    expect(parseServiceRoutes(doc)).toEqual([{ id: 'Red', mode: 'subway' }, { id: '1', mode: 'bus' }]);
   });
 });
 

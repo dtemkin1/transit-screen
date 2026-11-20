@@ -1,5 +1,5 @@
 import type { Config } from '../../config';
-import type { Alert, Departure, Mode, RouteInfo, Source, Station, Stop, Unit } from '../types';
+import type { Alert, Departure, Mode, RouteInfo, ServiceRow, Source, Station, Stop, Unit } from '../types';
 import type { fetchBytes, fetchJson } from '../data/worker-client';
 
 interface FeedBase {
@@ -75,6 +75,8 @@ export interface FeedUpdate {
   alerts?: Alert[];
   stations?: Station[];
   routes?: RouteInfo[];
+  /** Rows the feed could show today, for sizing its panels. */
+  service?: ServiceRow[];
   /** Live data arrived. Its own timestamp (plus GBFS `ttl`) caps how fresh it counts as. */
   fresh?: { at?: unknown; validFor?: unknown };
 }

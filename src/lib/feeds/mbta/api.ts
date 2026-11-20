@@ -145,6 +145,56 @@ export function parsePredictions(json: unknown, source: Source = 'mbta'): { depa
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const hhmm = (minutes: number) => `${pad2(Math.floor(minutes / 60))}:${pad2(minutes % 60)}`;
+const isoDate = (sd: string) => `${sd.slice(0, 4)}-${sd.slice(4, 6)}-${sd.slice(6, 8)}`;
+
+/** Routes serving any of `platformIds` in one direction on service date `sd`, whatever the hour. */
+export function routesUrl(cfg: Config, platformIds: string[], sd: string, directionId: 0 | 1, mode: 'subway' | 'bus'): string {
+  return url(cfg, 'routes', {
+    'filter[stop]': platformIds.join(','),
+    'filter[date]': isoDate(sd),
+    'filter[direction_id]': String(directionId),
+    'filter[type]': mode === 'subway' ? '0,1' : '3',
+    'fields[route]': 'type',
+  });
+}
+
+/** The route patterns serving any of `platformIds` on service date `sd`, with each one's route type and destination. */
+export function routePatternsUrl(cfg: Config, platformIds: string[], sd: string): string {
+  return url(cfg, 'route_patterns', {
+    'filter[stop]': platformIds.join(','),
+    'filter[date]': isoDate(sd),
+    include: 'route,representative_trip',
+    'fields[route_pattern]': 'direction_id',
+    'fields[route]': 'type',
+    'fields[trip]': 'headsign',
+  });
+}
+
+/**
+ * Each route and destination once, as subway rows are keyed ("Red" to "Braintree"): a direction can
+ * split by branch. The Silver Line is left out, as it is from departures.
+ */
+export function parseServiceDestinations(json: unknown): { id: string; mode: Mode; headsign: string }[] {
+  const doc = asDoc(json);
+  const included = new Map((doc.included ?? []).map((r) => [`${r.type}:${r.id}`, r]));
+  const out = new Map<string, { id: string; mode: Mode; headsign: string }>();
+  for (const p of doc.data ?? []) {
+    const id = rel(p, 'route') ?? '';
+    const mode = routeModeOf(included.get(`route:${id}`)?.attributes?.type);
+    const headsign = included.get(`trip:${rel(p, 'representative_trip')}`)?.attributes?.headsign;
+    if (!mode || !headsign || SILVER_LINE_IDS.includes(id)) continue;
+    out.set(`${id}:${headsign}`, { id, mode, headsign });
+  }
+  return [...out.values()];
+}
+
+/** The board's modes only; the Silver Line is left out here as it is from departures. */
+export function parseServiceRoutes(json: unknown): { id: string; mode: Mode }[] {
+  return (asDoc(json).data ?? []).flatMap((r) => {
+    const mode = routeModeOf(r.attributes?.type);
+    return r.type === 'route' && mode && !SILVER_LINE_IDS.includes(r.id) ? [{ id: r.id, mode }] : [];
+  });
+}
 
 /** Next 60 minutes, expressed relative to the service date (so 00:30 after midnight is "24:30"). */
 export function schedulesUrl(cfg: Config, platformIds: string[], nowMs: number): string {
@@ -152,7 +202,7 @@ export function schedulesUrl(cfg: Config, platformIds: string[], nowMs: number):
   const minutes = Math.floor((nowMs - gtfsTimeToEpoch(sd, '00:00:00')) / 60_000);
   return url(cfg, 'schedules', {
     'filter[stop]': platformIds.join(','),
-    'filter[date]': `${sd.slice(0, 4)}-${sd.slice(4, 6)}-${sd.slice(6, 8)}`,
+    'filter[date]': isoDate(sd),
     'filter[min_time]': hhmm(minutes),
     'filter[max_time]': hhmm(minutes + 60),
     include: 'route,trip',

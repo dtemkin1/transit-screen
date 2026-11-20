@@ -6,7 +6,7 @@ export interface PanelDef {
   /** Use the name of the one route ("Red Line") or feed ("Bluebikes") shown, when there is just one. */
   nameBy?: 'route' | 'feed';
   rows: 'by-station' | 'closest-stop' | 'stations';
-  /** Fixed height share, so panel borders stay put as departures come and go. */
+  /** Relative height used, at 3 rows each, while the panel's need is unknown. */
   share: number;
   /** Landscape column; portrait stacks panels in this table's order. */
   column: number;
@@ -20,13 +20,13 @@ export const PANELS: readonly PanelDef[] = [
 ];
 
 /**
- * On a screen too short for every shown panel to fit a row (`fits[id] === false`), the next panel to
- * hide: the shown one last in `priority`. Never the only one left.
+ * The next panel to hide when columns (by index in `overflowing`) are too short for their panels'
+ * one-row floors: the one last in `priority` among them. Never a column's only panel.
  */
 export function panelToHide(
-  shown: readonly PanelId[], fits: Partial<Record<PanelId, boolean>>, priority: readonly PanelId[],
+  columns: readonly (readonly PanelId[])[], overflowing: ReadonlySet<number>, priority: readonly PanelId[],
 ): PanelId | undefined {
-  if (shown.length < 2 || !shown.some((id) => fits[id] === false)) return undefined;
-  const ranked = [...priority, ...shown.filter((id) => !priority.includes(id))];
-  return ranked.reverse().find((id) => shown.includes(id));
+  const candidates = columns.filter((col, i) => overflowing.has(i) && col.length > 1).flat();
+  const ranked = [...priority, ...candidates.filter((id) => !priority.includes(id))];
+  return ranked.reverse().find((id) => candidates.includes(id));
 }

@@ -131,6 +131,24 @@ describe('poller', () => {
     h.poller.stop();
   });
 
+  it('keeps each feed\'s service rows for sizing, asked again every 10 min', async () => {
+    const red = {
+      data: [{ id: 'Red-1-0', type: 'route_pattern', relationships: {
+        route: { data: { id: 'Red', type: 'route' } }, representative_trip: { data: { id: 't', type: 'trip' } } } }],
+      included: [{ id: 'Red', type: 'route', attributes: { type: 1 } }, { id: 't', type: 'trip', attributes: { headsign: 'Ashmont' } }],
+    };
+    const h = harness({ ...ok, '/mbta/route_patterns': red });
+    expect(h.poller.state.service).toEqual({});
+    h.poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.poller.state.service.mbta).toEqual([
+      { mode: 'subway', key: 'Red:Ashmont', routeId: 'Red', stopId: 'place-knncl' },
+    ]);
+    expect(h.count('/mbta/route_patterns')).toBe(1);
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(h.count('/mbta/route_patterns')).toBe(2);
+  });
+
   it('dedupes merged alerts by id', async () => {
     const h = harness(ok);
     h.poller.start();

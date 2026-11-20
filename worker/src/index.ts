@@ -22,6 +22,7 @@ const MBTA_TTL: Record<string, number> = {
   schedules: 300,
   stops: 86400,
   routes: 86400,
+  route_patterns: 86400,
 }
 const GTFS_TTL = 6 * 3600
 const WALK_TTL = 24 * 3600

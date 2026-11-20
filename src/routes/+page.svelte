@@ -5,6 +5,8 @@
   import { updated } from '$app/state';
   import { buildBoard } from '#lib/board/build.ts';
   import { PANELS, panelToHide } from '#lib/board/panels.ts';
+  import { panelNeed, panelRows, priorityFactor, splitColumn, uncappedPanel, type ColumnItem } from '#lib/board/size.ts';
+  import { measure, type ColumnSize } from '#lib/ui/measure.ts';
   import AlertStrip from '#lib/ui/AlertStrip.svelte';
   import Header from '#lib/ui/Header.svelte';
   import Panel from '#lib/ui/Panel.svelte';
@@ -90,25 +92,20 @@
       : undefined,
   );
 
-  /** Height share of a panel with nothing to list: room for the title and a note or two. */
-  const EMPTY_SHARE = 1;
-
   /**
-   * Panels left out because the screen is too short for each to show a row: the lowest priority
-   * (cfg.priority) goes first, one at a time, until the rest fit.
+   * Panels left out because a column is too short for its panels' one-row floors: the lowest
+   * priority (cfg.priority) in that column goes first, one at a time, until the rest fit.
    */
   let hidden = $state<PanelId[]>([]);
-  /** Whether each panel has room for a row, as it reports through `bind:fits`. */
-  let fits = $state<Record<string, boolean>>({});
   const panelIds = $derived((board?.panels ?? []).map((p) => p.id).join());
-  /** Starts over, so more room shows everything again; runs when the screen or the set of panels changes. */
+  /** Starts over, so more room shows everything again; runs when the screen, the panels or their rows change. */
   const reset = () => {
     hidden = [];
-    fits = {};
   };
   $effect(() => {
     void panelIds;
     void landscape;
+    void rowsKey;
     reset();
   });
   $effect(() => {
@@ -116,8 +113,7 @@
     return () => removeEventListener('resize', reset);
   });
   $effect(() => {
-    const shown = (board?.panels ?? []).map((p) => p.id).filter((id) => !hidden.includes(id));
-    const next = panelToHide(shown, fits, cfg.priority);
+    const next = panelToHide(columns.map((col) => col.map((x) => x.panel.id)), overflowing, cfg.priority);
     if (next) hidden = [...hidden, next];
   });
   const listFormat = new Intl.ListFormat('en', { type: 'conjunction' });
@@ -126,19 +122,60 @@
     return titles.length > 0 ? `${listFormat.format(titles)} hidden: screen too short.` : '';
   });
 
-  /** Landscape: each panel in its PANELS column. Portrait: one column in PANELS order. */
+  /** The rows each panel starts at in its column: those its service could show today (src/lib/board/size.ts). */
+  const rows = $derived.by(() => {
+    const out = new Map<PanelId, number>();
+    for (const def of PANELS) {
+      const panel = board?.panels.find((p) => p.id === def.id);
+      if (!panel) continue;
+      /** Nothing to list (only "live data unavailable"), so the panel keeps just its notes. */
+      const empty = !panel.stations && panel.groups.every((g) => g.rows.length === 0);
+      const need = data.discovered && panelNeed(def, data.discovered, data.service, cfg.hide);
+      out.set(def.id, panelRows(def, need, empty));
+    }
+    return out;
+  });
+  /** Read by the reset, so it covers hidden panels too: hiding one must not start the hiding over. */
+  const rowsKey = $derived([...rows].join());
+  /** Each panel's height at its starting rows, as it reports through `bind:startHeight`. */
+  let startHeights = $state<Partial<Record<PanelId, number>>>({});
+  /** Each panel's least height, as it reports through `bind:floorHeight`. */
+  let floorHeights = $state<Partial<Record<PanelId, number>>>({});
+  /** Each column's height and the gap between its panels, in px, as it reports through `use:measure`. */
+  let columnSizes = $state<ColumnSize[]>([]);
+  /**
+   * Landscape: each panel in its PANELS column. Portrait: one column in PANELS order. Each panel starts
+   * at its rows; spare room goes to the column's top-priority panel, and a short column shrinks lower ones more.
+   */
   const columns = $derived.by(() => {
-    const cols = new Map<number, { panel: BoardPanel; share: number }[]>();
+    const cols = new Map<number, { panel: BoardPanel; rows: number; grow: number; shrink: number }[]>();
     for (const def of PANELS) {
       const panel = board?.panels.find((p) => p.id === def.id);
       if (!panel || hidden.includes(def.id)) continue;
       const c = landscape ? def.column : 0;
-      // A panel with nothing to list (only "live data unavailable") gives its room to the others.
-      const empty = !panel.stations && panel.groups.every((g) => g.rows.length === 0);
-      cols.set(c, [...(cols.get(c) ?? []), { panel, share: empty ? EMPTY_SHARE : def.share }]);
+      const shrink = 1 / priorityFactor(def.id, cfg.priority);
+      cols.set(c, [...(cols.get(c) ?? []), { panel, rows: rows.get(def.id)!, grow: 0, shrink }]);
     }
-    return [...cols.entries()].sort(([a], [b]) => a - b).map(([, col]) => col);
+    return [...cols.entries()].sort(([a], [b]) => a - b).map(([, col]) => {
+      const ids = col.map((x) => x.panel.id);
+      const top = uncappedPanel(ids, cfg.priority, col.filter((x) => x.rows === 0).map((x) => x.panel.id));
+      return col.map((x) => (x.panel.id === top ? { ...x, grow: 1 } : x));
+    });
   });
+  /**
+   * Each column's panel heights in px (splitColumn), or null when the floors don't fit. Undefined
+   * until the column and its panels have been measured; the slots then share the column evenly.
+   */
+  const heights = $derived(columns.map((col, ci) => {
+    const size = columnSizes[ci];
+    const items = col.map((x) => ({
+      start: startHeights[x.panel.id], floor: floorHeights[x.panel.id], shrink: x.shrink, grow: x.grow,
+    }));
+    if (!size || items.some((i) => i.start === undefined || i.floor === undefined)) return undefined;
+    return splitColumn(size.height, size.gap, items as ColumnItem[]);
+  }));
+  /** Indexes of the columns too short for their panels' floors. */
+  const overflowing = $derived(new Set(heights.flatMap((h, ci) => (h === null ? [ci] : []))));
 </script>
 
 <svelte:head><title>{[cfg.building, cfg.name || data.name].filter(Boolean).join(' ')} transit screen</title></svelte:head>
@@ -158,10 +195,11 @@
       <p class="message">No departures nearby in the next hour.</p>
     {:else}
       {#each columns as col, ci (ci)}
-        <div class="column">
-          {#each col as { panel, share } (panel.id)}
-            <div class="slot" style:flex-grow={share}>
-              <Panel {panel} bind:fits={fits[panel.id]} />
+        <div class="column" use:measure={(size) => (columnSizes[ci] = size)}>
+          {#each col as { panel, rows }, pi (panel.id)}
+            {@const h = heights[ci]?.[pi]}
+            <div class="slot" style:height={h === undefined ? undefined : `${h}px`} style:flex={h === undefined ? undefined : 'none'}>
+              <Panel {panel} {rows} bind:startHeight={startHeights[panel.id]} bind:floorHeight={floorHeights[panel.id]} />
             </div>
           {/each}
         </div>
@@ -201,10 +239,13 @@
     flex-direction: column;
     gap: var(--rail-w);
     background: var(--rail);
+    overflow: hidden;
   }
+  /* Shares the column evenly until measured, then gets its height from splitColumn inline. */
   .slot {
-    flex-basis: 0;
+    flex: 1 1 0;
     min-height: 0;
+    min-width: 0;
   }
   .message {
     margin: 0;

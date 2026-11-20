@@ -1,5 +1,6 @@
 import { parseServiceAlerts, parseTripUpdates } from './realtime';
-import { directionKey, parseGtfsZip, scheduledDepartures, type GtfsStatic } from './static';
+import { directionKey, parseGtfsZip, scheduledDepartures, todaysService, type GtfsStatic } from './static';
+import { serviceDate } from '../../util/time';
 import type { Stop } from '../../types';
 import { workerUrl } from '../../data/worker-client';
 import type { Adapter, FeedScope, GtfsFeed, Poll } from '../types';
@@ -59,6 +60,14 @@ export const gtfs: Adapter<GtfsFeed, GtfsStatic> = {
         // With no live feed, the schedule is as current as this board can be.
         ...(!rt && { fresh: {} }),
       }),
+    }, {
+      name: 'service',
+      // Repeats so a feed that joins on a later discovery is counted the same day.
+      everyMs: 10 * MIN,
+      run: (scope, _io, nowMs) => scope.stops.length === 0 ? undefined : {
+        service: todaysService(scope.data, stopIds(scope), serviceDate(nowMs))
+          .map((r) => ({ mode: feed.mode, ...r, stopId: '' })),
+      },
     }];
     if (rt) {
       polls.push({

@@ -5,6 +5,16 @@ export type PanelId = Mode;
 export type Source = string;
 export interface LatLon { lat: number; lon: number }
 
+/** A row a feed could show today, listed to size its panel. */
+export interface ServiceRow {
+  mode: Mode;
+  /** Feed's `directionKey`; for subway, the route and destination ("Red:Braintree"), as its rows are keyed */
+  key: string;
+  /** The route, so a hidden one (`?hide=`) isn't counted. */
+  routeId: string;
+  stopId: string;
+}
+
 export interface Stop {
   /** The MBTA parent station for subway; the stop itself otherwise. */
   id: string;

@@ -287,6 +287,7 @@ describe('worker', () => {
       ['/mbta/schedules', 300],
       ['/mbta/stops', 86400],
       ['/mbta/routes', 86400],
+      ['/mbta/route_patterns', 86400],
       ['/gtfs/ezride', 21600],
     ]
     for (const [path, ttl] of cases) {

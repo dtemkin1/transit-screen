@@ -3,7 +3,7 @@
 import { FEEDS } from '../../config';
 import type { Discovered } from './discovery';
 import type { PollerState } from './poller.svelte';
-import type { Departure, Mode, RouteInfo, Source, Station, Stop } from '../types';
+import type { Departure, Mode, RouteInfo, ServiceRow, Source, Station, Stop } from '../types';
 
 const MIN = 60_000;
 
@@ -85,6 +85,13 @@ export function createDemoPoller(kind: string) {
     for (const d of ds) out[d.source].push(d);
     return out;
   };
+  /** Today's service, as the feeds would list it: each direction, or for subway each destination at each station. */
+  const service: Record<Source, ServiceRow[]> = Object.fromEntries(FEEDS.map((f) => [f.id, []]));
+  for (const d of [...live, ...scheduled]) {
+    const subway = d.mode === 'subway';
+    const row = { mode: d.mode, key: subway ? `${d.routeId}:${d.headsign}` : d.directionKey, routeId: d.routeId, stopId: subway ? d.stopId : '' };
+    if (!service[d.source].some((r) => r.key === row.key && r.stopId === row.stopId)) service[d.source].push(row);
+  }
   const discovered: Discovered = {
     stops: STOPS, stations: STATIONS, routes: new Map(ROUTES.map((r) => [`${r.source}:${r.id}`, r])),
     serving: new Map(), feeds: {},
@@ -106,6 +113,7 @@ export function createDemoPoller(kind: string) {
     ],
     stations: STATIONS,
     extraRoutes: [],
+    service,
     now: start0,
   });
 

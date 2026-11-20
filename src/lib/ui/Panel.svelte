@@ -1,23 +1,26 @@
 <script lang="ts">
+  import { HEADER_EM, ROW_EM, panelFloor } from '../board/size';
   import { trimPanel } from '../board/trim';
   import type { BoardPanel } from '../types';
   import { fit } from './fit';
   import Row from './Row.svelte';
   import StationList from './StationList.svelte';
 
-  let { panel, fits = $bindable() }: {
+  let { panel, rows = 0, startHeight = $bindable(), floorHeight = $bindable() }: {
     panel: BoardPanel;
-    /** Set by the panel: whether it has room to show anything useful, one row or its note. */
-    fits?: boolean;
+    /** Rows the panel starts at in its column (src/lib/board/size.ts); never less than its floor. */
+    rows?: number;
+    /** Set by the panel: its height at `rows`, title included, in px. */
+    startHeight?: number;
+    /** Set by the panel: its least height, title plus its first row (or its notes), in px. */
+    floorHeight?: number;
   } = $props();
 
-  /** Row height, in the panel's em. */
-  const ROW_EM = 2.5;
-  /** Station header height, also in the panel's em, so the ratio passed to trimPanel is exact. */
-  const HEADER_EM = 1.45;
-
+  let section: HTMLElement | undefined = $state();
   let body: HTMLElement | undefined = $state();
   let bodyHeight = $state(0);
+  /** Everything but the body: title, gap and padding, which grow when the title's notes wrap. */
+  let chromePx = $state(0);
   let emPx = $state(0);
 
   const rowPx = $derived(emPx * ROW_EM);
@@ -31,29 +34,34 @@
     return notes.length > 0 ? [...new Set(notes)] : ['Live data unavailable'];
   });
 
-  /** Room needed, in rows: the first row (with its station header, for the subway), or one line of note. */
-  const needed = $derived(
-    unavailable ? 0.5 : panel.stations ? 1 : panel.groups[0]?.header ? 1 + HEADER_EM / ROW_EM : 1,
-  );
+  /** The panel's floor, in rows. */
+  const needed = $derived(panelFloor(panel, unavailable ? emptyNotes.length : 0));
+
   $effect(() => {
-    fits = maxLines >= needed;
+    startHeight = rowPx === 0 ? undefined : chromePx + Math.max(rows, needed) * rowPx;
+    floorHeight = rowPx === 0 ? undefined : chromePx + needed * rowPx;
   });
 
   function measure() {
-    if (!body) return;
-    bodyHeight = body.clientHeight;
+    if (!body || !section) return;
+    const b = body.getBoundingClientRect();
+    // Unrounded, plus half a pixel: a body sized to exactly one row (the floor) must count as fitting it.
+    bodyHeight = b.height + 0.5;
+    // From the body's offset, not the section's height, so a squeezed panel doesn't shrink its own floor.
+    chromePx = b.top - section.getBoundingClientRect().top + parseFloat(getComputedStyle(section).paddingBottom);
     emPx = parseFloat(getComputedStyle(body).fontSize) || 0;
   }
 
   $effect(() => {
-    if (!body) return;
+    if (!body || !section) return;
     const ro = new ResizeObserver(measure);
     ro.observe(body);
+    ro.observe(section);
     return () => ro.disconnect();
   });
 </script>
 
-<section class="panel" aria-label={panel.title} style:--row="{ROW_EM}em" style:--header="{HEADER_EM}em">
+<section class="panel" bind:this={section} aria-label={panel.title} style:--row="{ROW_EM}em" style:--header="{HEADER_EM}em" style:--need="{needed * ROW_EM}em">
   <h2 class="title">
     <span class="name">{panel.title}</span>
     {#if !unavailable}{#each panel.notes as note (note)}<span class="flag">{note}</span>{/each}{/if}
@@ -84,9 +92,10 @@
     height: 100%;
     background: var(--page);
     padding: 1.2vmin 1.8vmin 0.4vmin;
-    display: flex;
-    flex-direction: column;
-    gap: 0.3em;
+    /* The body row's minimum is the panel's floor; the page sizes slots no smaller, title included. */
+    display: grid;
+    grid-template-rows: auto minmax(var(--need), 1fr);
+    row-gap: 0.3em;
     min-width: 0;
     min-height: 0;
     overflow: hidden;
@@ -120,10 +129,11 @@
     margin: 0.4em 0 0;
     color: var(--muted);
   }
+  /* Size containment keeps the rows out of the panel's minimum height, so its floor is --need alone. */
   .body {
-    flex: 1;
     min-height: 0;
     overflow: hidden;
+    contain: size;
   }
   .station {
     height: var(--header);

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { strToU8, zipSync } from 'fflate';
 import { parseCsv } from './csv';
-import { activeServiceIds, parseGtfsZip, scheduledDepartures, type GtfsOptions } from './static';
+import { activeServiceIds, parseGtfsZip, scheduledDepartures, todaysService, type GtfsOptions } from './static';
 import { fetchBytes, fetchJson, workerUrl } from '../../data/worker-client';
 import { defaultConfig } from '../../../config';
 
@@ -85,6 +85,21 @@ describe('activeServiceIds', () => {
   it('weekday service is active on a Tuesday and not on Saturday', () => {
     expect(activeServiceIds(s, '20261117').has('WK')).toBe(true);
     expect(activeServiceIds(s, '20261121').size).toBe(0);
+  });
+});
+
+describe('todaysService', () => {
+  it('lists each direction that boards at a nearby stop today', () => {
+    expect(todaysService(s, new Set(['A']), '20261117')).toEqual([
+      { key: 'r1:Stop B', routeId: 'r1' }, { key: 'r1:Stop D', routeId: 'r1' },
+    ]);
+  });
+  it('leaves out service that does not run that day', () => {
+    expect(todaysService(s, new Set(['A']), '20261121')).toEqual([]);
+    expect(todaysService(s, new Set(['A']), '20261126')).toEqual([]);
+  });
+  it('does not count a stop where the trip only drops off', () => {
+    expect(todaysService(s, new Set(['B']), '20261117')).toEqual([{ key: 'r1:Stop D', routeId: 'r1' }]);
   });
 });
 

@@ -57,8 +57,8 @@ describe('gtfs adapter', () => {
 
   it('polls live data only when the feed has a realtime URL; a schedule-only feed counts as fresh', async () => {
     const rt = { ...feed, realtime: { tripUpdates: 'https://x/tu.json', serviceAlerts: 'https://x/sa.json' } };
-    expect(gtfs.polls(feed).map((p) => p.name)).toEqual(['schedule']);
-    expect(gtfs.polls(rt).map((p) => p.name)).toEqual(['schedule', 'trip updates', 'alerts']);
+    expect(gtfs.polls(feed).map((p) => p.name)).toEqual(['schedule', 'service']);
+    expect(gtfs.polls(rt).map((p) => p.name)).toEqual(['schedule', 'service', 'trip updates', 'alerts']);
 
     const { c } = await candidates();
     const scope = { data: c.data, stops: c.stops!, stations: [], routes: c.routes! };
@@ -68,5 +68,15 @@ describe('gtfs adapter', () => {
     expect(scheduleOnly).toMatchObject({ fresh: {} });
     expect(scheduleOnly!.scheduled).toHaveLength(1);
     expect(await gtfs.polls(rt)[0].run(scope, io, now)).not.toHaveProperty('fresh');
+  });
+
+  it('lists today\'s directions at nearby stops for sizing, every 10 minutes', async () => {
+    const poll = gtfs.polls(feed).find((p) => p.name === 'service')!;
+    expect(poll.everyMs).toBe(600_000);
+    const { c } = await candidates();
+    const scope = { data: c.data, stops: c.stops!.filter((s) => s.id === 'A'), stations: [], routes: c.routes! };
+    const io = { cfg, fetchJson: vi.fn() as never, fetchBytes: vi.fn() };
+    const u = await poll.run(scope, io, Date.parse('2026-11-17T06:30:00-05:00'));
+    expect(u).toEqual({ service: [{ mode: 'bus', key: 'Stop B', routeId: 'r1', stopId: '' }] });
   });
 });

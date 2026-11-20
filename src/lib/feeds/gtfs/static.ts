@@ -164,6 +164,22 @@ export function activeServiceIds(s: GtfsStatic, sd: string): Set<string> {
   return ids;
 }
 
+/**
+ * Each direction key and route of trips running on `sd` that board at one of `stopIds` (a trip's last
+ * stop is drop-off only), sorted by key.
+ */
+export function todaysService(s: GtfsStatic, stopIds: ReadonlySet<string>, sd: string): { key: string; routeId: string }[] {
+  const active = activeServiceIds(s, sd);
+  const found = new Map<string, { key: string; routeId: string }>();
+  for (const [tripId, trip] of s.trips) {
+    if (!active.has(trip.serviceId)) continue;
+    const boards = (s.stopTimes.get(tripId) ?? []).slice(0, -1).some((t) => stopIds.has(t.stopId));
+    const key = directionKey(s, trip.routeId, trip.headsign);
+    if (boards) found.set(`${key}|${trip.routeId}`, { key, routeId: trip.routeId });
+  }
+  return [...found.values()].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+}
+
 function shiftDate(sd: string, days: number): string {
   const d = new Date(Date.UTC(+sd.slice(0, 4), +sd.slice(4, 6) - 1, +sd.slice(6, 8)) + days * 86_400_000);
   const p = (n: number) => String(n).padStart(2, '0');
