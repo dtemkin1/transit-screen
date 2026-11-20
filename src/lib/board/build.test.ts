@@ -129,6 +129,24 @@ describe('buildBoard: subway', () => {
     expect(times.some((t) => t.missable)).toBe(false);
   });
 
+  it('shows a train leaving within the leeway (a fifth of the walk, at least a minute) among the others, marked', () => {
+    // Kendall walk is 600 s, so 2 min of leeway: 9 min is a hurry, 5 min is out of reach.
+    const { panels } = buildBoard(input({
+      live: withLive([5, 9, 12, 20, 30].map((min) => red('70071', { min }))),
+    }));
+    const times = panel(panels, 'subway')!.groups[0].rows[0].times;
+    expect(mins(times)).toEqual([9, 12, 20]);
+    expect(times.map((t) => t.missable === true)).toEqual([true, false, false]);
+  });
+
+  it('the leeway ends exactly a fifth of the walk short', () => {
+    const at = (min: number) => mins(panel(buildBoard(input({
+      live: withLive([red('70071', { min }), red('70071', { min: 30 })]),
+    })).panels, 'subway')!.groups[0].rows[0].times);
+    expect(at(8)).toEqual([8, 30]);
+    expect(at(7.9)).toEqual([30]);
+  });
+
   it('with nothing reachable, shows the last train you may miss, marked, and no other', () => {
     const { panels } = buildBoard(input({
       live: withLive([2, 7].map((min) => red('70072', { min, dir: '1' }))),
@@ -169,9 +187,9 @@ describe('buildBoard: subway', () => {
   });
 
   it('a row is labelled by the first departure shown, not an unreachable earlier one', () => {
-    // Stop 1001 is a 2 min walk: the 1-min "Harvard" bus is left out, so the row is the 12-min "Harvard via Mass Ave".
+    // Stop 1001 is a 2 min walk (1 min of leeway): the half-minute "Harvard" bus is left out, so the row is the 12-min one.
     const { panels } = buildBoard(input({
-      live: withLive([bus1('1001', { min: 1 }), bus1('1001', { min: 12, headsign: 'Harvard via Mass Ave' })]),
+      live: withLive([bus1('1001', { min: 0.5 }), bus1('1001', { min: 12, headsign: 'Harvard via Mass Ave' })]),
     }));
     const row = panel(panels, 'bus')!.groups[0].rows[0];
     expect(row.headsign).toBe('Harvard via Mass Ave');
@@ -414,7 +432,7 @@ describe('buildBoard: bus and shuttle', () => {
     const { panels } = buildBoard(input({
       live: withLive(
         [
-          bus1('1001', { min: 1 }),  // unreachable (walk 120 s)
+          bus1('1001', { min: 0.5 }),  // unreachable even running (walk 120 s, 60 s of leeway)
           bus1('1001', { min: 12 }),
           dep('mbta', 'bus', '64', '1002')({ min: 7, headsign: 'Oak Sq' }),
         ],

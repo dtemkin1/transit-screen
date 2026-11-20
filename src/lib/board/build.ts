@@ -51,6 +51,10 @@ function groupBy<T>(items: T[], key: (t: T) => string): Map<string, T[]> {
   return out;
 }
 
+/** How much of the walk a rider can make up by running: a fifth of it, at least a minute. */
+const RUN_LEEWAY = 0.2;
+const RUN_LEEWAY_MIN_MS = 60_000;
+
 const DUPLICATE_WINDOW_MS = 60_000;
 const same = (x?: string, y?: string) => x !== undefined && x === y;
 /**
@@ -63,14 +67,18 @@ const isDuplicate = (a: Placed, b: Placed) =>
     [a.d.tripId, b.d.tripId].some((id) => id?.startsWith('ADDED-')));
 
 /**
- * Up to 3 reachable, de-duplicated times and the departure behind the first (it labels the row).
- * With none reachable, the last one you'd miss shows alone, marked.
+ * Up to 3 de-duplicated times you can reach, running if need be (marked), and the departure behind the
+ * first (it labels the row). With none, the last one you'd miss shows alone, marked.
  */
 function timeCells(placed: Placed[], nowMs: number): { cells: TimeCell[]; lead?: Placed } {
   // Compare against the walk shown on screen (rounded up), so the two never contradict.
-  const missable = (p: Placed) => p.d.departureTime - nowMs < walkMin(p.stop) * 60_000;
+  const walkMs = (p: Placed) => walkMin(p.stop) * 60_000;
+  const leftMs = (p: Placed) => p.d.departureTime - nowMs;
+  const missable = (p: Placed) => leftMs(p) < walkMs(p);
+  /** Close enough to run for: a fifth of the walk, at least a minute. */
+  const runnable = (p: Placed) => leftMs(p) >= walkMs(p) - Math.max(RUN_LEEWAY_MIN_MS, walkMs(p) * RUN_LEEWAY);
   const sorted = [...placed].sort((a, b) => a.d.departureTime - b.d.departureTime);
-  const reachable = sorted.filter((p) => !missable(p));
+  const reachable = sorted.filter(runnable);
   const shown: Placed[] = [];
   for (const p of reachable.length > 0 ? reachable : sorted.slice(-1)) {
     if (shown.some((s) => isDuplicate(s, p))) continue;

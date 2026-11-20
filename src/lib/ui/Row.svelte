@@ -47,7 +47,7 @@
   </div>
   {#if next}
     <div class="times">
-      <!-- A time that may be missed only ever shows alone (build.ts), so only the first is checked. -->
+      <!-- Only the first time can be one that may be missed: it is always the soonest shown (build.ts). -->
       <span class="next" class:scheduled={!next.live} class:missable={next.missable}>
         {#if nextMin !== undefined}{nextMin}<small> min</small>{:else}{next.label}{/if}{#if next.missable}<span
             class="mark" aria-hidden="true">*</span><span class="visually-hidden"> (may leave before you can walk there)</span>{/if}
