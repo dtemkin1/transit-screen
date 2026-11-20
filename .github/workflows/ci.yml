@@ -1,0 +1,35 @@
+name: Checks
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run check
+
+      - run: npm run worker:check
+
+      - run: npm test
+
+      - run: npm run build
+
+      - run: npx wrangler deploy --config worker/wrangler.toml --dry-run --outdir worker-dry-run
