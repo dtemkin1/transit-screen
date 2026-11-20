@@ -28,6 +28,8 @@ export const directionKey = (s: GtfsStatic, routeId: string, headsign: string) =
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const OUT_OF_SERVICE = /\bout of service\b|^OOS$/i;
+/** " (Southbound)" and the like, as Passio ends stop names. */
+const STOP_DIRECTION = /\s*\((north|south|east|west|in|out)bound\)$/i;
 
 export interface GtfsOptions {
   source: Source;
@@ -128,11 +130,9 @@ export function parseGtfsZip(
     if (!routes.has(r.route_id)) continue;
     const last = stopTimes.get(r.trip_id)?.at(-1);
     const own = headsignFrom === 'trip' ? r.trip_headsign?.trim() : '';
-    const headsign =
-      own ||
-      (last && stops.get(last.stopId)?.name) ||
-      routes.get(r.route_id)?.longName ||
-      '';
+    // A stop name's direction tells riders which side to wait on, not where the trip goes.
+    const lastStop = last && stops.get(last.stopId)?.name.replace(STOP_DIRECTION, '');
+    const headsign = own || lastStop || routes.get(r.route_id)?.longName || '';
     trips.set(r.trip_id, { routeId: r.route_id, serviceId: r.service_id, headsign });
   }
 

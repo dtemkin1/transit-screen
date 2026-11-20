@@ -7,6 +7,7 @@ const passio = (agency: string) => `https://passio3.com/${agency}/passioTransit/
 export const GTFS_STATIC: Record<string, string> = {
   mit: passio('mit'),
   ezride: passio('charlesriver'),
+  longwood: passio('longwoodcollective'),
 }
 
 /** GBFS autodiscovery URLs (the board fetches these itself; listed for the name scan). */

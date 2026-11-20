@@ -55,13 +55,13 @@ const dep = (source: Source, mode: Mode, routeId: string, stopId: string) =>
 const red = (stopId: string, o: DepOpts) => dep('mbta', 'subway', 'Red', stopId)(o);
 const bus1 = (stopId: string, o: DepOpts) => dep('mbta', 'bus', '1', stopId)({ headsign: 'Harvard', ...o });
 
-const empty = (): Record<Source, Departure[]> => ({ mbta: [], mit: [], ezride: [], bluebikes: [] });
+const empty = (): Record<Source, Departure[]> => Object.fromEntries(FEEDS.map((f) => [f.id, []]));
 
 function input(over: Partial<BoardInput> = {}): BoardInput {
   return {
     discovered: discovered(), nowMs: NOW, feeds: FEEDS,
     live: empty(), scheduled: empty(), stations: (over.discovered ?? discovered()).stations,
-    health: { mbta: { lastOk: NOW }, mit: { lastOk: NOW }, ezride: { lastOk: NOW }, bluebikes: { lastOk: NOW } },
+    health: Object.fromEntries(FEEDS.map((f) => [f.id, { lastOk: NOW }])),
     alerts: [], hide: [], extraRoutes: [],
     ...over,
   };

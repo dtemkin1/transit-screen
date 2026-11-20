@@ -17,6 +17,7 @@ describe('resolveConfig', () => {
       ['mit', { shuttle: 5 }],
       ['ezride', { bus: 6 }],
       ['bluebikes', { bikes: 8 }],
+      ['longwood', { shuttle: 5 }],
     ]);
     expect(c.feeds.find((f) => f.id === 'bluebikes')).toMatchObject({ maxStations: 4 });
   });

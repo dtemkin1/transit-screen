@@ -22,6 +22,7 @@ const STOPS: Stop[] = [
   stop('ezride', 'bus', 'e-vassar', 'Vassar/Mass Ave. OB', 120),
   stop('mit', 'shuttle', 'm-vassar', 'Vassar @ Mass Ave', 110),
   stop('mit', 'shuttle', 'm-77', '77 Massachusetts Ave', 150),
+  stop('longwood', 'shuttle', 'l-77', '77 Massachusetts Ave', 150),
 ];
 const ROUTES: RouteInfo[] = [
   route('mbta', 'subway', 'Red', '', 'Red Line', '#DA291C', '#FFFFFF'),
@@ -32,6 +33,7 @@ const ROUTES: RouteInfo[] = [
   route('mit', 'shuttle', 'ts', 'Tech Shuttle', 'Tech Shuttle', '#843C39', '#FFFFFF', { named: true }),
   // Passio publishes this one with no text color: the badge must still pick a readable one.
   route('mit', 'shuttle', 'sca', 'Saferide Cambridge All', 'Saferide Cambridge All', '#E377C2', '', { named: true }),
+  route('longwood', 'shuttle', '8526', 'M2', 'M2', '#610191', '', { named: true }),
 ];
 
 function departures(now: number): { live: Departure[]; scheduled: Departure[] } {
@@ -60,6 +62,7 @@ function departures(now: number): { live: Departure[]; scheduled: Departure[] } 
     ...[3, 18].map((m) => dep('mit', 'ts', 'm-vassar', '', 'Kendall Square T', m)),
     // 77 Mass Ave is a 3 min walk and this is the shuttle's only trip: it shows marked as one you may miss.
     dep('mit', 'sca', 'm-77', '', 'Simmons Hall', 1),
+    ...[9, 39].map((m) => dep('longwood', '8526', 'l-77', '', 'Longwood Medical Area', m)),
   ];
   const scheduled = [6, 26].map((m) => dep('ezride', '6448', 'e-vassar', '', 'North Station', m, { live: false }));
   return { live, scheduled };
@@ -123,8 +126,8 @@ export function createDemoPoller(kind: string) {
     live: outage ? { ...bySource(live), mbta: [], ezride: [] } : bySource(live),
     scheduled: outage ? empty() : bySource(scheduled),
     health: outage
-      ? { mbta: ago(15 * MIN), mit: ago(0), ezride: ago(15 * MIN), bluebikes: ago(0) }
-      : { mbta: ago(0), mit: ago(3 * MIN), ezride: ago(11 * MIN), bluebikes: ago(0) },
+      ? { mbta: ago(15 * MIN), mit: ago(0), ezride: ago(15 * MIN), bluebikes: ago(0), longwood: ago(0) }
+      : { mbta: ago(0), mit: ago(3 * MIN), ezride: ago(11 * MIN), bluebikes: ago(0), longwood: ago(0) },
     alerts: [
       { id: 'a1', source: 'mbta', routeIds: ['Red'], stopIds: [],
         header: 'Red Line: Shuttle buses replace trains between JFK/UMass and Ashmont after 9 PM tonight.' },

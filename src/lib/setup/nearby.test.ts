@@ -44,8 +44,8 @@ describe('classify', () => {
 describe('failedFeeds', () => {
   it('names the feeds discovery could not read', () => {
     const d = { ...found([]), feeds: { bluebikes: {} } };
-    expect(failedFeeds(d, defaultConfig)).toEqual(['MBTA', 'MIT shuttles', 'EZRide']);
-    expect(failedFeeds({ ...d, feeds: { mbta: null, mit: {}, ezride: {}, bluebikes: {} } }, defaultConfig)).toEqual([]);
+    expect(failedFeeds(d, defaultConfig)).toEqual(['MBTA', 'MIT shuttles', 'EZRide', 'Longwood shuttles']);
+    expect(failedFeeds({ ...d, feeds: { mbta: null, mit: {}, ezride: {}, bluebikes: {}, longwood: {} } }, defaultConfig)).toEqual([]);
   });
 });
 

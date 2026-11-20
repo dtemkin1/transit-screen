@@ -502,7 +502,7 @@ describe('discovery recovery', () => {
   const full = () => discovered({
     stops: [stop('place-knncl', 'mbta', ['70071']), stop('s1', 'mit', ['s1'])],
     stations: [bike('a'), bike('b')],
-    feeds: { ...WITH_BIKES, mit: mitStatic, ezride: { ...mitStatic, source: 'ezride' } },
+    feeds: { ...WITH_BIKES, mit: mitStatic, ezride: { ...mitStatic, source: 'ezride' }, longwood: { ...mitStatic, source: 'longwood' } },
   });
 
   it('retries an empty discovery after 60s and starts polls once non-empty', async () => {

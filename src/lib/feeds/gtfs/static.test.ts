@@ -36,6 +36,21 @@ describe('parseGtfsZip', () => {
   it('headsign falls back to last stop name', () => {
     expect(s.trips.get('t1')!.headsign).toBe('Stop D');
   });
+  it('a last-stop headsign drops the stop name\'s direction (Longwood: "Vanderbilt Hall (Southbound)")', () => {
+    const lw = parseGtfsZip(toZip({
+      ...files,
+      'stops.txt': 'stop_id,stop_name,stop_lat,stop_lon\nA,Stop A,42.1,-71.1\nB,Stop B,42.2,-71.2\nC,Stop C,42.3,-71.3\nD,Vanderbilt Hall (Southbound),42.4,-71.4\n',
+    }), MIT);
+    expect(lw.trips.get('t1')!.headsign).toBe('Vanderbilt Hall');
+    expect(lw.stops.get('D')!.name).toBe('Vanderbilt Hall (Southbound)');
+  });
+  it('keeps a trip_headsign as given', () => {
+    const own = parseGtfsZip(toZip({
+      ...files,
+      'trips.txt': 'route_id,service_id,trip_id,trip_headsign,direction_id\nr1,WK,t1,Kendall (Outbound),\n',
+    }), MIT);
+    expect(own.trips.get('t1')!.headsign).toBe('Kendall (Outbound)');
+  });
   it('headsign "last-stop" ignores trip_headsign (EZRide uses it for the service name, "Evening Service")', () => {
     const ez = parseGtfsZip(toZip({
       ...files,

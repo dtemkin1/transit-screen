@@ -28,4 +28,8 @@ export const FEEDS: FeedConfig[] = [
     kind: 'gbfs', id: 'bluebikes', name: 'Bluebikes', mode: 'bikes', walkMin: 8, maxStations: 4,
     url: 'https://gbfs.bluebikes.com/gbfs/gbfs.json', unit: { one: 'bike', electric: 'e-bike' },
   },
+  {
+    kind: "gtfs", id: "longwood", name: "Longwood shuttles", mode: "shuttle", walkMin: 5,
+    realtime: passioRealtime("longwoodcollective"), color: "#fdc42f", named: true,
+  },
 ];
