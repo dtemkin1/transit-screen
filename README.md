@@ -1,8 +1,8 @@
 # transit-screen
 
-A full-screen departures board for W41 at MIT: the next hour of MBTA, MIT shuttle, EZRide, and BlueBikes options that are within walking distance. It is a static SvelteKit site plus a small Cloudflare Worker that proxies the transit APIs so the MBTA key never reaches the browser.
+A full-screen departures board for W41 at MIT: the next hour of MBTA, MIT shuttle, Longwood shuttle, EZRide, and Bluebikes options that are within walking distance. It is a static SvelteKit site plus a small Cloudflare Worker that proxies the transit APIs so the MBTA key never reaches the browser.
 
-Agencies: MBTA, MIT Shuttles (Passio, `mit`), Charles River TMA / EZRide (Passio, `charlesriver`), BlueBikes.
+Agencies: MBTA, MIT Shuttles (Passio, `mit`), Longwood Collective shuttles such as the M2 (Passio, `longwoodcollective`), Charles River TMA / EZRide (Passio, `charlesriver`), Bluebikes.
 
 ## Layout
 
@@ -60,7 +60,7 @@ Other `Config` fields are set in code only (`src/lib/config/resolve.ts`):
 
 - `location`, `building`, `name`: default to W41, Metropolitan Warehouse, `{ lat: 42.35982, lon: -71.0961 }`. URL overrides apply, see above.
 - `workerUrl`: from the `WORKER_URL` build variable (default `http://localhost:8787`; see `src/env.ts`).
-- `feeds`: the agencies on the board, each with its walk limit (MBTA subway 15 min and bus 7, MIT shuttles 5, EZRide 6, Bluebikes 8 with the nearest 4 docks). See [Adding a feed](#adding-a-feed).
+- `feeds`: the agencies on the board, each with its walk limit (MBTA subway 15 min and bus 7, MIT and Longwood shuttles 5, EZRide 6, Bluebikes 8 with the nearest 4 docks). See [Adding a feed](#adding-a-feed).
 - `pin`, `hide` (also URL parameters): stop, route or alert IDs to pin or hide (routes and alerts also as `source:id`, e.g. `mbta:12345`). Hiding an alert is the way to remove one the wording filter misses. `pin` only keeps a stop that is already inside the mode's straight-line candidate circle (`maxWalkMin` x 60 x 1.3 m); it cannot add a farther stop.
 - `walkSpeedMps` (1.3) and `walkDetourFactor` (1.3): used only for the straight-line walk estimate.
 
@@ -81,7 +81,8 @@ Other `Config` fields are set in code only (`src/lib/config/resolve.ts`):
 - Every panel shown has room for at least one row. On a screen too short for that (a phone held sideways, a small window), the lowest-priority panel in the column that ran short is hidden (`priority` above), and the line at the bottom says which: "Bluebikes hidden: screen too short." More room brings them back.
 - Alerts take turns in the strip at the bottom, ten seconds each, up to two lines (three in portrait). The strip keeps the height of the longest alert in the rotation, so the panels above don't move as alerts change; it changes only when alerts are added or removed. Each alert leads with its agency in bold; when the alert opens with a label ("Red Line: …"), the two read as one ("MBTA Red Line: …").
 - Alerts are screened for profanity, since people type them. A flagged alert isn't shown; see [Wording filter](#wording-filter).
-- MIT shuttle rows lead with the route name ("Tech Shuttle to Kendall Square T"), since riders know shuttles by route. Routes Passio marks "out of service" are never shown.
+- Shuttle rows lead with the route name ("Tech Shuttle to Kendall Sq T", "M2 to Longwood Medical Area"), since riders know shuttles by route. MIT shuttles and Longwood shuttles share the Shuttles panel, and a panel note names the agency it's about ("MIT shuttles: data delayed"). Routes Passio marks "out of service" are never shown.
+- Longwood's feed gives its trips no destination, so the board uses each trip's last stop, without the "(Northbound)"-style direction Passio adds to stop names.
 - When one agency's data isn't fully live, the panel title says which ("EZRide: data delayed"), so live rows from the other agency in the same panel aren't called into question.
 - All EZRide routes are labelled `EZ` in the agency color (the feed's `badge` in `src/lib/config/feeds.ts`), with the trip's final stop as the destination. Since the routes look the same, routes to the same stop share one row.
 
@@ -99,7 +100,7 @@ Colors are in `src/lib/ui/palette.ts`; the rest of the styling is in `src/routes
 
 On the dev server (`npm run dev`), add one of these to the URL to see sample data:
 
-- `?demo`: every state the board can show (an alert, MBTA status text, a delayed feed, a schedule fallback, long names, a shuttle badge color with no text color).
+- `?demo`: every state the board can show (an alert, MBTA status text, a delayed feed, a schedule fallback, long names, a shuttle badge color with no text color, a time marked `*`, and a Longwood M2 shuttle beside the MIT ones).
 - `?demo=outage`: the "Live data unavailable" panels.
 - `?demo=disruption`: a Red Line direction whose timetabled trips MBTA is cancelling, with no live train listed ("No trains predicted").
 - `?demo=loading`: the startup screen.
@@ -131,7 +132,7 @@ Every agency is one entry in `FEEDS` in `src/lib/config/feeds.ts`. The board, th
 
 - **`gtfs`**: any GTFS static zip, with optional GTFS-RT in JSON form (Passio serves this; protobuf-only feeds aren't supported yet).
   - Required: `mode` (the panel it belongs in, `bus` or `shuttle`), `walkMin`, and a fallback route `color`.
-  - Optional: `realtime`, `badge` (one label for every route), `named` (rows lead with the route name), and `headsign: 'last-stop'` (when `trip_headsign` isn't a destination).
+  - Optional: `realtime`, `badge` (one label for every route), `named` (rows lead with the route name), and `headsign: 'last-stop'` (when `trip_headsign` names something other than a destination). A blank `trip_headsign` falls back to the last stop without it, as for Longwood.
   - Without `realtime`, the feed shows its schedule in italics with no "live data unavailable" note.
   - The Worker proxies the zip, so also add its URL to `GTFS_STATIC` in `worker/src/sources.ts` under the same `id`, and deploy the Worker again.
 - **`gbfs`**: any GBFS system with docks, from its `gbfs.json` autodiscovery URL. `unit` sets the words ("bike", "e-bike"). Also add the URL to `GBFS_DISCOVERY` in `worker/src/sources.ts`, so the name check covers it.
@@ -208,7 +209,7 @@ When something is flagged:
 
 Walking times come from the public FOSSGIS Valhalla instance (`valhalla1.openstreetmap.de`). It is a shared, fair-use service, so the Worker caches results for 24 hours. If it is unavailable, the board falls back to a straight-line estimate. Estimated walk times show a `~` before the minutes.
 
-### BlueBikes
+### Bluebikes
 
 Station data comes from the GBFS autodiscovery URL: `https://gbfs.bluebikes.com/gbfs/gbfs.json`.
 
