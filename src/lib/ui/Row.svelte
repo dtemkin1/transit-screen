@@ -40,7 +40,7 @@
 </script>
 
 <div class="row">
-  <span class="badge" style:background={colors.bg} style:color={colors.fg}>{colors.text}</span>
+  <span class="badge" class:long={colors.text.length > 3} style:background={colors.bg} style:color={colors.fg}>{colors.text}</span>
   <div class="dest">
     <span class="headsign" use:fit={title}></span>
     {#if sub.length > 0}<span class="sub" use:fit={sub}></span>{/if}
@@ -71,12 +71,19 @@
     column-gap: 0.55em;
     border-top: 1px solid var(--rule);
   }
+  /* A full pill, bold, as MBTA's own departure screens draw routes (mbta/screens route_pill.scss). */
   .badge {
     padding: 0.12em 0;
+    border-radius: 999px;
     font-weight: 700;
     text-align: center;
     white-space: nowrap;
     letter-spacing: -0.02em;
+  }
+  /* Over three characters ("BDv2") is set smaller, as MBTA's route pills do, so it clears the round ends. */
+  .badge.long {
+    font-size: 0.8em;
+    line-height: 1.5;
   }
   .dest,
   .times {
