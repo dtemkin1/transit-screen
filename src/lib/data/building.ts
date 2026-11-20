@@ -1,4 +1,4 @@
-import type { Config } from '../../config';
+import type { Config } from '../config/resolve';
 import { HttpError, workerUrl, type fetchJson } from './worker-client';
 
 /** An MIT building as the campus map (whereis.mit.edu) knows it; `name` is '' when it has none. */

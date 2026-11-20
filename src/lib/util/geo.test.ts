@@ -1,6 +1,6 @@
 import { it, expect } from 'vitest';
 import { haversineM, metresToDegrees, metresToRadiusDegrees, candidateRadiusM, fallbackWalkSec } from './geo';
-import { defaultConfig } from '../../config';
+import { defaultConfig } from '../config/resolve';
 
 const W41 = { lat: 42.35982, lon: -71.0961 };
 const CENTRAL = { lat: 42.365304, lon: -71.103621 };

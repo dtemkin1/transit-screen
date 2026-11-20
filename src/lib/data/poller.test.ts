@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { defaultConfig } from '../../config';
+import { defaultConfig } from '../config/resolve';
 import { sourceStatus } from '../board/health';
 import type { Discovered } from './discovery';
 import type { GtfsStatic } from '../feeds/gtfs/static';

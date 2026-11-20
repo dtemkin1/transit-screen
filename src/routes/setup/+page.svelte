@@ -4,20 +4,21 @@
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
-  import { resolveConfig } from '../../config';
+  import { parseList, readOptions, type BoardOptions } from '#lib/config/options.ts';
+  import { boardSearch, resolveConfig } from '#lib/config/resolve.ts';
   import { PANELS } from '#lib/board/panels.ts';
   import { lookupBuilding, type Building } from '#lib/data/building.ts';
   import { fetchJson } from '#lib/data/worker-client.ts';
   import type { PaletteChoice } from '#lib/ui/palette.ts';
   import type { LatLon, PanelId } from '#lib/types.ts';
-  import { formConfig, formFrom, formSearch, parseIds, type SetupForm } from '#lib/setup/form.ts';
   import { findNearby, type NearbyItem } from '#lib/setup/nearby.ts';
 
   /** This page's address. The form writes it with shallow routing, which SvelteKit keeps in `page.shallow`. */
   const address = $derived(page.shallow?.url ?? page.url);
-  let form: SetupForm = $state(formFrom(untrack(() => address.search)));
-  const cfg = $derived(formConfig(form));
-  const search = $derived(formSearch(form));
+  /** The board URL's options, edited in place: a field at its `NO_OPTIONS` value says nothing. */
+  let form: BoardOptions = $state(readOptions(untrack(() => address.search)));
+  const cfg = $derived(resolveConfig(form));
+  const search = $derived(boardSearch(form));
   const boardUrl = $derived(new URL(`${resolve('/')}${search}`, page.url.origin).href);
 
   /** How long the form waits after a change before adding a history entry, so typing a name makes one, not one per key. */
@@ -32,7 +33,7 @@
   // ...and the form follows the address when Back or Forward changes it.
   $effect(() => {
     const at = address.search;
-    if (at !== untrack(() => search)) form = formFrom(at);
+    if (at !== untrack(() => search)) form = readOptions(at);
   });
 
   const PALETTE_LABELS: Record<PaletteChoice, string> = {
@@ -47,8 +48,8 @@
   };
   const PALETTE_CHOICES = Object.keys(PALETTE_LABELS) as PaletteChoice[];
   /** What the board uses when no palette is chosen: SA+P's for W41, MIT's elsewhere. */
-  const impliedPalette = $derived(resolveConfig(`?building=${encodeURIComponent(form.building)}`).palette);
-  const W41 = resolveConfig('');
+  const impliedPalette = $derived(resolveConfig({ building: form.building }).palette);
+  const W41 = resolveConfig({});
 
   const titleOf = (id: PanelId) => PANELS.find((p) => p.id === id)?.title ?? id;
   function move(i: number, by: -1 | 1) {
@@ -167,7 +168,7 @@
   function load(text: string) {
     if (!text.trim()) return;
     try {
-      form = formFrom(new URL(text.trim(), address.href).search);
+      form = readOptions(new URL(text.trim(), address.href).search);
       loadError = '';
     } catch {
       loadError = "That isn't a URL.";
@@ -337,12 +338,12 @@
           <summary>Edit ids by hand</summary>
           <label class="field">
             <span class="label">Hide (stops, routes or alerts)</span>
-            <input value={form.hide.join(', ')} onchange={(e) => (form.hide = parseIds(e.currentTarget.value))} spellcheck="false" />
+            <input value={form.hide.join(', ')} onchange={(e) => (form.hide = parseList(e.currentTarget.value))} spellcheck="false" />
           </label>
           <p class="hint">Comma-separated. Routes and alerts can also be given as source:id, for example mbta:70.</p>
           <label class="field">
             <span class="label">Pin (stops)</span>
-            <input value={form.pin.join(', ')} onchange={(e) => (form.pin = parseIds(e.currentTarget.value))} spellcheck="false" />
+            <input value={form.pin.join(', ')} onchange={(e) => (form.pin = parseList(e.currentTarget.value))} spellcheck="false" />
           </label>
         </details>
       </fieldset>

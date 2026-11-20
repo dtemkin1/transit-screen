@@ -1,4 +1,4 @@
-import type { Config } from '../../config';
+import type { Config } from '../config/resolve';
 import type { Alert } from '../types';
 
 export function workerUrl(cfg: Pick<Config, 'workerUrl'>, path: string): string {

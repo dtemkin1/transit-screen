@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildBoard, type BoardInput } from './build';
 import type { Discovered } from '../data/discovery';
-import { FEEDS } from '../../config';
+import { FEEDS } from '../config/feeds';
 import type { Alert, BoardPanel, Departure, Mode, RouteInfo, Source, Station, Stop } from '../types';
 
 const NOW = 1_800_000_000_000;

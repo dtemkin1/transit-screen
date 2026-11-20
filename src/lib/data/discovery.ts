@@ -1,4 +1,4 @@
-import type { Config } from '../../config';
+import type { Config } from '../config/resolve';
 import { adapterFor, walkLimits } from '../feeds';
 import type { FeedCandidates, FeedConfig } from '../feeds/types';
 import { candidateRadiusM, fallbackWalkSec, haversineM } from '../util/geo';

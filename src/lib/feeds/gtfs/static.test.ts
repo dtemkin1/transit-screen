@@ -3,7 +3,7 @@ import { strToU8, zipSync } from 'fflate';
 import { parseCsv } from './csv';
 import { activeServiceIds, parseGtfsZip, scheduledDepartures, todaysService, type GtfsOptions } from './static';
 import { fetchBytes, fetchJson, workerUrl } from '../../data/worker-client';
-import { defaultConfig } from '../../../config';
+import { defaultConfig } from '../../config/resolve';
 
 const files: Record<string, string> = {
   'routes.txt': 'route_id,route_short_name,route_long_name,route_color,route_text_color\nr1,,Tech Shuttle,,\n',

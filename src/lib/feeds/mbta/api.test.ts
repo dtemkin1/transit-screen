@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { FEEDS, defaultConfig } from '../../../config';
+import { FEEDS } from '../../config/feeds';
+import { defaultConfig } from '../../config/resolve';
 import { mbta } from './adapter';
 import type { MbtaFeed } from '../types';
 import { metresToRadiusDegrees } from '../../util/geo';

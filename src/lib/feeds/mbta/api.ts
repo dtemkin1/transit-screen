@@ -1,4 +1,4 @@
-import type { Config } from '../../../config';
+import type { Config } from '../../config/resolve';
 import { candidateRadiusM, metresToRadiusDegrees } from '../../util/geo';
 import { gtfsTimeToEpoch, serviceDate } from '../../util/time';
 import type { Alert, CancelledStop, Departure, Mode, RouteInfo, Source, Stop } from '../../types';

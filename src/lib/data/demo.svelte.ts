@@ -1,6 +1,6 @@
 // Dev-only sample data covering every board state: ?demo, ?demo=outage, ?demo=disruption, ?demo=loading, ?demo=failing.
 // The board uses it only when `dev` (from $app/env) is true, so production builds never include it.
-import { FEEDS } from '../../config';
+import { FEEDS } from '../config/feeds';
 import type { Discovered } from './discovery';
 import type { PollerState } from './poller.svelte';
 import type { Departure, Mode, RouteInfo, ServiceRow, Source, Station, Stop } from '../types';

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { strToU8, zipSync } from 'fflate';
-import { defaultConfig } from '../../../config';
+import { defaultConfig } from '../../config/resolve';
 import { gtfs } from './adapter';
 import type { GtfsFeed } from '../types';
 

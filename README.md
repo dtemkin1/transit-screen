@@ -19,15 +19,15 @@ Inside `src/`, data flows top to bottom through these folders. Each test file si
 | `routes/+layout.*`, `app.html`, `base.css` | What both pages share: the HTML shell, fonts, base styles (shared colors, type stacks), and the page options (prerendered, rendered in the browser). |
 | `hooks.client.ts` | Sends errors the page didn't handle to the Worker's logs. |
 | `service-worker/` | Caches the site so a screen can start without network. |
-| `config.ts` | Settings, URL parameters and the list of feeds (`FEEDS`). |
 | `env.ts` | The build settings `WORKER_URL` and `ADOBE_FONTS_KIT`, checked when the site is built. |
+| `lib/config/` | The board's settings: `options.ts` (what a board URL can say: one entry per parameter saying how to read it, and one way of writing them all), `resolve.ts` (`Config`, its defaults, what another building implies, and the shortest URL for a board) and `feeds.ts` (the list of agencies, `FEEDS`). |
 | `lib/types.ts` | Shared shapes: stops, routes, departures, stations, board panels. |
 | `lib/feeds/` | One folder per kind of source (`mbta/`, `gtfs/`, `gbfs/`). Each has an `adapter.ts` (what to find nearby and what to poll) beside the code that parses that source's format. `types.ts` defines the adapter contract and the feed config; `index.ts` maps each kind to its adapter. |
 | `lib/data/` | Getting data and keeping it current: `discovery.ts` finds nearby stops and walk times, `poller.svelte.ts` runs every feed's polls and holds the live state, `building.ts` looks up MIT buildings, `worker-client.ts` talks to the Worker, and `demo.svelte.ts` is the dev-only sample data. |
 | `lib/board/` | Turning that state into what the screen shows: `panels.ts` (the panel table), `build.ts` (rows and notes), `countdown.ts`, `health.ts` (live, delayed or unavailable) and `trim.ts` (fitting rows to the space). |
 | `lib/ui/` | The Svelte components, plus what only the screen needs: `format.ts` (badges, abbreviations, contrast), `palette.ts` (frame colors) and `rotation.svelte.ts` (cycling alerts). |
 | `lib/util/` | Generic helpers: `geo.ts` (distances) and `time.ts` (Boston service-day time). |
-| `lib/setup/` | The setup page's logic: `form.ts` (form to URL and back, through `config.ts`) and `nearby.ts` (stops to hide or pin). |
+| `lib/setup/` | `nearby.ts`: the setup page's list of nearby stops to hide or pin. Its form edits `BoardOptions` directly. |
 | `lib/names/`, `routes/names.json/` | The feed-name check (`scan.ts`), which the build runs and publishes as `names.json` (see [Wording filter](#wording-filter)). |
 | `test/fixtures/` | Recorded API responses used by the tests. |
 
@@ -44,7 +44,7 @@ The easiest way to configure a screen is the setup page, `setup/` under the boar
 
 The page's own address keeps the form's settings, so a reload or a shared setup link opens with the same choices. Each change (or each pause while typing) is a step in the browser's history, so Back undoes it.
 
-Settings live in `src/config.ts` (`defaultConfig`). The board can override some of them from the URL:
+Settings live in `src/lib/config/resolve.ts` (`defaultConfig`). The board can override some of them from the URL. Each parameter is one entry in `PARAMS` in `src/lib/config/options.ts`:
 
 | Parameter | Example | Meaning |
 | --- | --- | --- |
@@ -56,7 +56,7 @@ Settings live in `src/config.ts` (`defaultConfig`). The board can override some 
 | `priority` | `?priority=shuttle,subway` | Which panels matter most, most important first (`subway`, `bus`, `shuttle`, `bikes`). The highest in each column gets the column's spare room and gives up the least when the column is short. On a screen too short for every panel, the lowest are hidden first. Panels left out follow in the default order: Red Line, buses, shuttles, Bluebikes. |
 | `pin`, `hide` | `?hide=2168,mbta:70` | Comma-separated ids to pin or hide; see `pin` and `hide` below. |
 
-Other `Config` fields are set in code only (`src/config.ts`):
+Other `Config` fields are set in code only (`src/lib/config/resolve.ts`):
 
 - `location`, `building`, `name`: default to W41, Metropolitan Warehouse, `{ lat: 42.35982, lon: -71.0961 }`. URL overrides apply, see above.
 - `workerUrl`: from the `WORKER_URL` build variable (default `http://localhost:8787`; see `src/env.ts`).
@@ -80,7 +80,7 @@ Other `Config` fields are set in code only (`src/config.ts`):
 - Alerts are screened for profanity, since people type them. A flagged alert isn't shown; see [Wording filter](#wording-filter).
 - MIT shuttle rows lead with the route name ("Tech Shuttle to Kendall Square T"), since riders know shuttles by route. Routes Passio marks "out of service" are never shown.
 - When one agency's data isn't fully live, the panel title says which ("EZRide: data delayed"), so live rows from the other agency in the same panel aren't called into question.
-- All EZRide routes are labelled `EZ` in the agency color (the feed's `badge` in `src/config.ts`), with the trip's final stop as the destination. Since the routes look the same, routes to the same stop share one row.
+- All EZRide routes are labelled `EZ` in the agency color (the feed's `badge` in `src/lib/config/feeds.ts`), with the trip's final stop as the destination. Since the routes look the same, routes to the same stop share one row.
 
 ### Look
 
@@ -124,7 +124,7 @@ The kit's CSS is fetched from `use.typekit.net` when the page loads. If it can't
 
 ### Adding a feed
 
-Every agency is one entry in `FEEDS` in `src/config.ts`. The board, the panel notes and the polling all read that list, so a new feed of a kind the board already supports needs no other app code:
+Every agency is one entry in `FEEDS` in `src/lib/config/feeds.ts`. The board, the panel notes and the polling all read that list, so a new feed of a kind the board already supports needs no other app code:
 
 - **`gtfs`**: any GTFS static zip, with optional GTFS-RT in JSON form (Passio serves this; protobuf-only feeds aren't supported yet).
   - Required: `mode` (the panel it belongs in, `bus` or `shuttle`), `walkMin`, and a fallback route `color`.
@@ -174,7 +174,7 @@ The map leaves out off-campus buildings (`OC` prefix) and some others, such as W
 
 Since SA+P's colors belong to SA+P, another `building` switches to the `mit` palette: MIT's black and red, and its typeface, Neue Haas Grotesk (see Fonts); add `&palette=` to choose otherwise, for example for an SA+P space in another building.
 
-The default board (W41) keeps its location in `src/config.ts`, so it needs no lookup to start.
+The default board (W41) keeps its location in `src/lib/config/resolve.ts`, so it needs no lookup to start.
 
 ### Wording filter
 

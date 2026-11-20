@@ -1,4 +1,4 @@
-import type { Config } from '../../config';
+import type { Config } from '../config/resolve';
 import { lookupBuilding, type Building } from './building';
 import type { Health } from '../board/health';
 import { defaultDiscoveryDeps, discover, type Discovered } from './discovery';

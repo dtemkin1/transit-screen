@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { defaultConfig } from '../../config';
+import { defaultConfig } from '../config/resolve';
 import { lookupBuilding } from './building';
 import { HttpError } from './worker-client';
 

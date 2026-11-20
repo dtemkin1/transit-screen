@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { defaultConfig, type Config } from '../../config';
+import { defaultConfig, type Config } from '../config/resolve';
 import { discover, type DiscoveryDeps } from './discovery';
 import type { FeedCandidates } from '../feeds/types';
 import type { Station, Stop } from '../types';

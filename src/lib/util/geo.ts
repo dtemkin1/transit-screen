@@ -1,5 +1,5 @@
 import type { LatLon } from '../types';
-import type { Config } from '../../config';
+import type { Config } from '../config/resolve';
 
 const EARTH_RADIUS_M = 6_371_000;
 const METRES_PER_DEGREE = 111_320;

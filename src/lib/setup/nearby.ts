@@ -1,4 +1,4 @@
-import type { Config } from '../../config';
+import type { Config } from '../config/resolve';
 import { defaultDiscoveryDeps, discover, type Discovered } from '../data/discovery';
 import { walkLimits } from '../feeds';
 import type { FeedConfig } from '../feeds/types';

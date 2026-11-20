@@ -1,4 +1,4 @@
-import type { Config } from '../../config';
+import type { Config } from '../config/resolve';
 import type { Alert, CancelledStop, Departure, Mode, RouteInfo, ServiceRow, Source, Station, Stop, Unit } from '../types';
 import type { fetchBytes, fetchJson } from '../data/worker-client';
 

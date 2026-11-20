@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultConfig } from '../../config';
+import { defaultConfig } from '../config/resolve';
 import type { Discovered } from '../data/discovery';
 import type { Station, Stop } from '../types';
 import { candidateRadiusM, metresToDegrees } from '../util/geo';
