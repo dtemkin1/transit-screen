@@ -27,8 +27,12 @@ const ROUTES = [
   route('mbta', 'subway', 'Red', 'Red Line'),
   route('mbta', 'bus', '1'),
   route('mbta', 'bus', '64'),
+  route('mbta', 'bus', '85'),
+  route('mbta', 'bus', '34E'),
+  route('mbta', 'bus', 'CT2'),
   route('ezride', 'bus', 'er'),
   route('mit', 'shuttle', 'tech'),
+  route('mit', 'shuttle', 'sca'),
 ];
 const BIKE: Station = {
   id: 'b1', source: 'bluebikes', mode: 'bikes', unit: { one: 'bike' }, name: 'Bikes', lat: 0, lon: 0, walkSec: 60,
@@ -134,11 +138,34 @@ describe('buildBoard: subway', () => {
     expect(times[0].missable).toBe(true);
   });
 
-  it('sorts a bus row with only a bus you may miss after the rows you can catch', () => {
+  it('keeps a bus route in its place even when its only bus may be missed', () => {
     const { panels } = buildBoard(input({
       live: withLive([bus1('1001', { min: 1 }), dep('mbta', 'bus', '64', '1002')({ min: 30, headsign: 'Oak Sq' })]),
     }));
-    expect(panel(panels, 'bus')!.groups[0].rows.map((r) => r.key)).toEqual(['mbta:64:0', 'mbta:1:0']);
+    expect(panel(panels, 'bus')!.groups[0].rows.map((r) => r.key)).toEqual(['mbta:1:0', 'mbta:64:0']);
+  });
+
+  it('orders bus rows by route, numbers as numbers, a route\'s directions together, other agencies after', () => {
+    const bus = (id: string, min: number, dir = '0') => dep('mbta', 'bus', id, '1001')({ min, dir, headsign: `${id} ${dir}` });
+    const { panels } = buildBoard(input({
+      live: withLive(
+        [bus('85', 5), bus('1', 30, '1'), bus('CT2', 4), bus('34E', 20), bus('1', 25), bus('64', 15)],
+        { ezride: [dep('ezride', 'bus', 'er', 'e1')({ min: 3, headsign: 'North Station' })] },
+      ),
+    }));
+    expect(panel(panels, 'bus')!.groups[0].rows.map((r) => r.key)).toEqual([
+      'mbta:1:0', 'mbta:1:1', 'mbta:34E:0', 'mbta:64:0', 'mbta:85:0', 'mbta:CT2:0', 'ezride:er:0',
+    ]);
+  });
+
+  it('keeps shuttle rows soonest first', () => {
+    const { panels } = buildBoard(input({
+      live: withLive([], { mit: [
+        dep('mit', 'shuttle', 'tech', 'm1')({ min: 20, headsign: 'Kendall' }),
+        dep('mit', 'shuttle', 'sca', 'm1')({ min: 8, headsign: 'Simmons' }),
+      ] }),
+    }));
+    expect(panel(panels, 'shuttle')!.groups[0].rows.map((r) => r.route.id)).toEqual(['sca', 'tech']);
   });
 
   it('a row is labelled by the first departure shown, not an unreachable earlier one', () => {
@@ -383,7 +410,7 @@ describe('buildBoard: bus and shuttle', () => {
     expect(panel(dropOff.panels, 'shuttle')!.groups[0].rows.map((r) => r.stopName)).toEqual(['Stop m2']);
   });
 
-  it('bus rows sorted by first reachable departure; mbta and ezride share the panel', () => {
+  it('mbta and ezride share the bus panel, in route order', () => {
     const { panels } = buildBoard(input({
       live: withLive(
         [
@@ -395,8 +422,8 @@ describe('buildBoard: bus and shuttle', () => {
       ),
     }));
     const rows = panel(panels, 'bus')!.groups[0].rows;
-    expect(rows.map((r) => r.key)).toEqual(['ezride:er:0', 'mbta:64:0', 'mbta:1:0']);
-    expect(mins(rows[2].times)).toEqual([12]);
+    expect(rows.map((r) => r.key)).toEqual(['mbta:1:0', 'mbta:64:0', 'ezride:er:0']);
+    expect(mins(rows[0].times)).toEqual([12]);
   });
 
   it('bus panel status is the worst of mbta and ezride', () => {

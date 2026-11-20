@@ -31,6 +31,9 @@ interface Placed {
   quiet?: boolean;
 }
 
+/** Compares route names with their numbers as numbers: "1" < "34E" < "64" < "CT2". */
+const ROUTE_NAMES = new Intl.Collator('en', { numeric: true });
+
 /** In place of times, where live data is cancelling the timetable and lists no train yet. */
 const NO_TRAINS = 'No trains predicted';
 
@@ -205,7 +208,11 @@ export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: A
     for (const d of [...input.live[s], ...input.scheduled[s]]) serve(`${d.source}:${d.directionKey}`, stopOf(d));
   }
   for (const [key, platforms] of discovered.serving) for (const p of platforms) serve(key, stopByPlatform.get(p));
-  const closestStop = (placed: Placed[]): BoardGroup[] => {
+  /** Route order: agencies as `feeds` lists them, then route names with numbers as numbers (1, 34E, 64, 85, CT2). */
+  const byRoute = (a: BoardRow, b: BoardRow) =>
+    sources.indexOf(a.route.source) - sources.indexOf(b.route.source) ||
+    ROUTE_NAMES.compare(a.route.shortName || a.route.id, b.route.shortName || b.route.id);
+  const closestStop = (placed: Placed[], order: PanelDef['order']): BoardGroup[] => {
     const rows: BoardRow[] = [];
     for (const [key, list] of groupBy(placed, (p) => `${p.d.source}:${p.d.directionKey}`)) {
       const stop = [...serving.get(key)!].sort(byWalk)[0];
@@ -213,7 +220,9 @@ export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: A
         { stopName: stop.name, walkMin: walkMin(stop), walkEstimated: stop.walkEstimated });
       if (row) rows.push(row);
     }
-    rows.sort((a, b) => nextDeparture(a) - nextDeparture(b) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+    // The key last keeps a route's directions together, in a fixed order.
+    const byKey = (a: BoardRow, b: BoardRow) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
+    rows.sort((a, b) => (order === 'route' ? byRoute(a, b) : nextDeparture(a) - nextDeparture(b)) || byKey(a, b));
     return rows.length > 0 ? [{ rows }] : [];
   };
 
@@ -240,7 +249,7 @@ export function buildBoard(input: BoardInput): { panels: BoardPanel[]; alerts: A
       continue;
     }
     const placed = shown.filter((p) => p.d.mode === def.id);
-    const groups = def.rows === 'by-station' ? byStation(placed) : closestStop(placed);
+    const groups = def.rows === 'by-station' ? byStation(placed) : closestStop(placed, def.order);
     // A failing feed keeps its panel (empty) so the UI can say live data is unavailable.
     const failing = st !== 'ok' && st !== 'delayed' && panelSources.length > 0;
     if (groups.length > 0 || failing) panels.push(panel(groups));
