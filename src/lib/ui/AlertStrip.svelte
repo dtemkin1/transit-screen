@@ -9,12 +9,11 @@
   const index = $derived(rotation.index);
   const current = $derived(alerts[index]);
   /** The agency leads in bold and is never cut, unless the header already starts with it. */
-  const text = $derived.by((): Segment[] => {
-    if (!current) return [];
-    const { agency, header } = current;
-    if (!agency || header.toLowerCase().startsWith(agency.toLowerCase())) return [{ text: header }];
-    return [{ text: `${agency}:`, cls: 'agency', keep: true }, { text: ` ${header}` }];
-  });
+  const segments = ({ agency, header }: Alert): Segment[] =>
+    !agency || header.toLowerCase().startsWith(agency.toLowerCase())
+      ? [{ text: header }]
+      : [{ text: `${agency}:`, cls: 'agency', keep: true }, { text: ` ${header}` }];
+  const text = $derived(current ? segments(current) : []);
 </script>
 
 {#if current}
@@ -22,7 +21,13 @@
     <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 2 1 21h22L12 2Zm1 15h-2v2h2v-2Zm0-8h-2v6h2V9Z" fill="currentColor" fill-rule="evenodd" />
     </svg>
-    <p class="text" use:fit={text}></p>
+    <!-- Every alert sits, unseen, in the same cell as the one shown, so the strip keeps the tallest one's height. -->
+    <div class="texts">
+      {#each alerts as alert, i (i)}
+        <p class="text sizer" aria-hidden="true">{#each segments(alert) as s, j (j)}<span class={s.cls}>{s.text}</span>{/each}</p>
+      {/each}
+      <p class="text" use:fit={text}></p>
+    </div>
     {#if alerts.length > 1}<span class="count">{index + 1} of {alerts.length}</span>{/if}
   </aside>
 {/if}
@@ -43,9 +48,15 @@
     width: 1.2em;
     height: 1.2em;
   }
+  .texts {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    align-items: center;
+  }
   /* `fit` cuts at a word to the lines the clamp allows, so the clamp never cuts a word. */
   .text {
-    flex: 1;
+    grid-area: 1 / 1;
     margin: 0;
     min-width: 0;
     display: -webkit-box;
@@ -58,6 +69,9 @@
   :global([data-layout='portrait']) .text {
     -webkit-line-clamp: 3;
     line-clamp: 3;
+  }
+  .sizer {
+    visibility: hidden;
   }
   .text :global(.agency) {
     font-weight: 700;
