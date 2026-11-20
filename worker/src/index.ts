@@ -105,10 +105,35 @@ const BUILDING_ID = /^[A-Z0-9]{1,8}$/
 const BUILDING_TTL = 30 * 86400
 
 interface WhereisHit {
+  /** Missing for places with no building number ("pika"). */
   bldgnum?: string
+  /** "object-14", "object-pika". */
+  id?: string
   name?: string
   lat_wgs84?: number
   long_wgs84?: number
+}
+
+/*
+ * MIT building numbers (Space Accounting Guidelines, MIT Design Standards T18, 2.2): an optional area
+ * prefix (N, NE, NW, E, EE, W, WW, OC), a number, and optionally letters. A letter marks a wing (14N),
+ * an auxiliary building (W57A beside W57) or a component (W61A of W61), and some buildings join several
+ * (W85ABC, written W85A-B-C). The campus map also lists places by name ("pika").
+ */
+
+/** "W85A-B-C" → "W85ABC": a hyphen between single letters joins them. One before a digit starts a room ("32-123"). */
+const joinLetters = (id: string) => id.replace(/-(?=[A-Z](?:-|$))/g, '')
+
+/** The building a lettered number belongs to: "14N" → "14", "W57A" → "W57". It ends in a digit, so NW86 has none. */
+const MAIN_BUILDING = /^(.*\d)[A-Z]+$/
+
+/**
+ * The place `id` names, among whereis's search results: the building with that number, else the
+ * place with that object id ("pika"). A search for "4" also finds "W4" and "E14", so only exact
+ * matches count.
+ */
+function findPlace(hits: WhereisHit[], id: string): WhereisHit | undefined {
+  return hits.find((h) => h.bldgnum?.toUpperCase() === id) ?? hits.find((h) => h.id?.toUpperCase() === `OBJECT-${id}`)
 }
 
 const REPORT_MAX_BYTES = 4096
@@ -147,21 +172,33 @@ async function building(deps: Deps, id: string): Promise<Response> {
     deps,
     key,
     async () => {
-      const up = await deps.fetch(WHEREIS + encodeURIComponent(id))
-      if (!up.ok) return text(502, 'building upstream error')
-      let hits: unknown
-      try {
-        hits = await up.json()
-      } catch {
-        return text(502, 'building upstream malformed')
+      const search = async (q: string): Promise<WhereisHit[] | Response> => {
+        const up = await deps.fetch(WHEREIS + encodeURIComponent(q))
+        if (!up.ok) return text(502, 'building upstream error')
+        try {
+          const hits: unknown = await up.json()
+          return Array.isArray(hits) ? (hits as WhereisHit[]) : []
+        } catch {
+          return text(502, 'building upstream malformed')
+        }
       }
-      // A search for "4" also finds "W4" and "E14": only the exact building counts.
-      const hit = (Array.isArray(hits) ? (hits as WhereisHit[]) : []).find((h) => h.bldgnum?.toUpperCase() === id)
+      const hits = await search(id)
+      if (hits instanceof Response) return hits
+      // The campus map has no entry for most lettered parts (14N, W57A, 6B): they stand at their main
+      // building. Its search for "14N" may already return 14; otherwise search for the main building.
+      const main = MAIN_BUILDING.exec(id)?.[1]
+      let hit = findPlace(hits, id) ?? (main ? findPlace(hits, main) : undefined)
+      if (!hit && main) {
+        const mainHits = await search(main)
+        if (mainHits instanceof Response) return mainHits
+        hit = findPlace(mainHits, main)
+      }
       const lat = hit?.lat_wgs84
       const lon = hit?.long_wgs84
       if (!hit || typeof lat !== 'number' || typeof lon !== 'number') return text(404, 'no such building')
-      // whereis names unnamed buildings "Building W41" or just "E14".
-      const name = hit.name && hit.name !== id && hit.name !== `Building ${id}` ? hit.name : ''
+      // whereis names unnamed buildings "Building W41", or by the number ("E14") or id ("pika") alone.
+      const own = [id, hit.bldgnum?.toUpperCase()].flatMap((n) => (n ? [n, `BUILDING ${n}`] : []))
+      const name = hit.name && !own.includes(hit.name.toUpperCase()) ? hit.name : ''
       return Response.json({ number: id, name, lat, lon })
     },
     BUILDING_TTL,
@@ -241,8 +278,8 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
     res = await mbta(req, env, deps, parts[1], url.search)
   } else if (parts[0] === 'gtfs' && parts.length === 2 && req.method === 'GET' && Object.hasOwn(GTFS_STATIC, parts[1])) {
     res = await gtfs(deps, parts[1])
-  } else if (parts[0] === 'building' && parts.length === 2 && req.method === 'GET' && BUILDING_ID.test(parts[1].toUpperCase())) {
-    res = await building(deps, parts[1].toUpperCase())
+  } else if (parts[0] === 'building' && parts.length === 2 && req.method === 'GET' && BUILDING_ID.test(joinLetters(parts[1].toUpperCase()))) {
+    res = await building(deps, joinLetters(parts[1].toUpperCase()))
   } else if (parts[0] === 'walk' && parts.length === 1) {
     res = await walk(req, deps)
   } else if (parts[0] === 'report' && parts.length === 1) {

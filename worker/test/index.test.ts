@@ -100,6 +100,51 @@ describe('worker', () => {
     expect(await e14.json()).toMatchObject({ number: 'E14', name: '' })
   })
 
+  it('finds a place with no building number by its whereis id ("pika")', async () => {
+    const hits = [{ name: 'pika', id: 'object-pika', lat_wgs84: 42.3565, long_wgs84: -71.1082 }]
+    const { calls, run } = setup(() => Response.json(hits))
+    const res = await run(new Request('https://w.test/building/pika'))
+    expect(await res.json()).toEqual({ number: 'PIKA', name: '', lat: 42.3565, lon: -71.1082 })
+    expect(calls[0].url).toBe('https://whereis.mit.edu/search?type=query&output=json&q=PIKA')
+  })
+
+  it('places a wing ("14N") at its building, keeping the wing as the number', async () => {
+    const hits = [{ bldgnum: '14', id: 'object-14', name: 'Hayden Memorial Library', lat_wgs84: 42.3592, long_wgs84: -71.0893 }]
+    const { run } = setup(() => Response.json(hits))
+    expect(await (await run(new Request('https://w.test/building/14n'))).json())
+      .toEqual({ number: '14N', name: 'Hayden Memorial Library', lat: 42.3592, lon: -71.0893 })
+  })
+
+  it('places a lettered part the map lacks (W57A) at its main building, with a second search', async () => {
+    const { calls, run } = setup((url) => Response.json(String(url).endsWith('q=W57')
+      ? [{ bldgnum: 'W57', id: 'object-W57', name: 'Building W57', lat_wgs84: 1, long_wgs84: 2 }]
+      : []))
+    expect(await (await run(new Request('https://w.test/building/w57a'))).json())
+      .toEqual({ number: 'W57A', name: '', lat: 1, lon: 2 })
+    expect(calls.map((c) => c.url.split('q=')[1])).toEqual(['W57A', 'W57'])
+  })
+
+  it('reads letters joined by hyphens as the map writes them (W85A-B-C, 14N-S-E-W)', async () => {
+    const hits = [
+      { bldgnum: 'W85ABC', id: 'object-W85ABC', name: 'Westgate (ABC)', lat_wgs84: 1, long_wgs84: 2 },
+      { bldgnum: '14', id: 'object-14', name: 'Hayden Memorial Library', lat_wgs84: 3, long_wgs84: 4 },
+    ]
+    const { run } = setup(() => Response.json(hits))
+    expect(await (await run(new Request('https://w.test/building/W85A-B-C'))).json()).toMatchObject({ number: 'W85ABC', name: 'Westgate (ABC)' })
+    expect(await (await run(new Request('https://w.test/building/14N-S-E-W'))).json()).toMatchObject({ number: '14NSEW', lat: 3 })
+  })
+
+  it('reads a building whose number ends in a letter as itself, not as a wing', async () => {
+    const hits = [
+      { bldgnum: 'NW86', name: 'Sidney Pacific', lat_wgs84: 1, long_wgs84: 2 },
+      { bldgnum: 'NW8', name: 'Other', lat_wgs84: 3, long_wgs84: 4 },
+    ]
+    const { run } = setup(() => Response.json(hits))
+    expect(await (await run(new Request('https://w.test/building/NW86'))).json()).toMatchObject({ name: 'Sidney Pacific' })
+    // "W1N" is a wing of W1; without W1 in the results it's unknown, not some other building.
+    expect((await run(new Request('https://w.test/building/W1N'))).status).toBe(404)
+  })
+
   it('a building whereis does not know is a 404, and is not cached', async () => {
     const { calls, run } = setup(() => Response.json([{ bldgnum: 'W41', name: 'Building W41', lat_wgs84: 1, long_wgs84: 2 }]))
     expect((await run(new Request('https://w.test/building/W4'))).status).toBe(404)
@@ -108,7 +153,7 @@ describe('worker', () => {
     expect(await (await run(new Request('https://w.test/building/W41'))).json()).toMatchObject({ name: '' })
   })
 
-  it.each(['/building/', '/building/W41/x', '/building/..%2Fx', '/building/TOOLONGNAME'])(
+  it.each(['/building/', '/building/W41/x', '/building/..%2Fx', '/building/TOOLONGNAME', '/building/32-123', '/building/32-G449'])(
     '404s without fetching for %s', async (path) => {
       const { calls, run } = setup(() => new Response('[]'))
       expect((await run(new Request(`https://w.test${path}`))).status).toBe(404)

@@ -154,6 +154,15 @@ Stations (`Station` in `src/lib/types.ts`) already carry their own `unit`, so a 
 
 For any MIT building, `?building=32` is enough. At startup the board looks the number up on MIT's campus map ([whereis.mit.edu](https://whereis.mit.edu)), through the Worker's `/building/{number}` route, which caches the answer for 30 days. That gives the walking origin and the building's name for the header ("Ray and Maria Stata Center"); buildings the map has no name for show only the number.
 
+The lookup accepts building numbers as MIT's [Space Accounting Guidelines](https://web.mit.edu/facilities/maps/DesignStandards/T18%20-%20Space%20Accounting%20Guidelines%202022.pdf) form them (section 2.2), and the map's other place names:
+
+- **Area prefixes:** none for the Main Group (`1`, `68`), or `N`, `NE`, `NW`, `E`, `EE`, `W` and `WW` (`NE49`, `WW15`).
+- **Letters after the number:** a wing (`14N`), an auxiliary building (`6B`) or a component (`W61A`). Most have no entry of their own on the map, so the board measures walking from the main building (14, 6 or W61) and shows its name, with the lettered number in the header. Those the map does list, such as `6C` and `W85ABC`, are used directly.
+- **Joined letters:** written with hyphens or without (`W85A-B-C` or `W85ABC`, `14N-S-E-W`). A room number (`32-123`) isn't a building and isn't looked up.
+- **Place names:** `?building=pika`.
+
+The map leaves out off-campus buildings (`OC` prefix) and ones that no longer stand. For those, give `lat` and `lon` instead.
+
 - `&name=` overrides the name.
 - `&lat=...&lon=...` sets the location yourself, with no lookup, for a spot the map doesn't have.
 - A number the map doesn't know shows a message saying so instead of departures.

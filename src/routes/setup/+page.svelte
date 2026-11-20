@@ -227,7 +227,7 @@
           {#if lookup.state === 'loading'}
             Looking up building {lookupNumber}…
           {:else if lookup.state === 'found'}
-            {lookup.building.name || `Building ${lookup.building.number}`}, at {lookup.building.lat.toFixed(5)}, {lookup.building.lon.toFixed(5)}.
+            {lookup.building.name || cfg.building}, at {lookup.building.lat.toFixed(5)}, {lookup.building.lon.toFixed(5)}.
           {:else if lookup.state === 'missing'}
             <span class="error">Building {lookupNumber} isn't on the MIT campus map. Check the number, or enter its latitude and longitude below.</span>
           {:else if lookup.state === 'error'}
