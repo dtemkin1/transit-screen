@@ -80,6 +80,35 @@ export const defaultConfig: Config = {
   priority: [...PANEL_IDS],
 };
 
+/** "a, b,,c" → ['a', 'b', 'c']. */
+const listParam = (params: URLSearchParams, key: string) =>
+  (params.get(key) ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+
+/**
+ * The shortest query string `resolveConfig` reads back as `cfg`: only what differs from `base`, or
+ * from what another building implies (its name, palette and location come from the campus map).
+ * Returns '' for the default board, else "?building=32&…".
+ */
+export function configSearch(cfg: Config, base: Config = defaultConfig): string {
+  const params = new URLSearchParams();
+  const implied = () => resolveConfig(params.toString(), base);
+  if (cfg.building !== base.building) params.set('building', cfg.building);
+  if (cfg.name && cfg.name !== implied().name) params.set('name', cfg.name);
+  if (cfg.palette !== implied().palette) params.set('palette', cfg.palette);
+  if (cfg.priority.join() !== base.priority.join()) params.set('priority', cfg.priority.join(','));
+  if (cfg.inset !== base.inset) params.set('inset', String(cfg.inset));
+  const at = implied();
+  if (!cfg.locate && (at.locate || cfg.location.lat !== at.location.lat || cfg.location.lon !== at.location.lon)) {
+    params.set('lat', String(cfg.location.lat));
+    params.set('lon', String(cfg.location.lon));
+  }
+  if (cfg.pin.length > 0) params.set('pin', cfg.pin.join(','));
+  if (cfg.hide.length > 0) params.set('hide', cfg.hide.join(','));
+  // Commas and colons are legal in a query; left unescaped, the lists ("mbta:70,1") stay readable.
+  const query = params.toString().replace(/%2C/gi, ',').replace(/%3A/gi, ':');
+  return query ? `?${query}` : '';
+}
+
 export function resolveConfig(search: string, base: Config = defaultConfig): Config {
   const params = new URLSearchParams(search);
   const config: Config = { ...base };
@@ -100,6 +129,12 @@ export function resolveConfig(search: string, base: Config = defaultConfig): Con
 
   const priority = params.get('priority');
   if (priority) config.priority = parsePriority(priority, base.priority);
+
+  const pin = listParam(params, 'pin');
+  if (pin.length > 0) config.pin = pin;
+
+  const hide = listParam(params, 'hide');
+  if (hide.length > 0) config.hide = hide;
 
   const inset = Number(params.get('inset'));
   if (Number.isFinite(inset)) config.inset = Math.min(10, Math.max(0, inset));

@@ -6,7 +6,7 @@ Agencies: MBTA, MIT Shuttles (Passio, `mit`), Charles River TMA / EZRide (Passio
 
 ## Layout
 
-- `src/`: the board, in SvelteKit with Svelte 5 (static output, no browser storage).
+- `src/`: the board and its setup page, in SvelteKit with Svelte 5 (static output, no browser storage).
 - `worker/`: the Cloudflare Worker (`worker/src/index.ts`) that fetches and caches upstream data.
 - `.github/workflows/deploy.yml`: builds and deploys to GitHub Pages on every push to `main`.
 
@@ -15,7 +15,8 @@ Inside `src/`, data flows top to bottom through these folders. Each test file si
 | Path | What it holds |
 | --- | --- |
 | `routes/+page.ts`, `routes/+page.svelte`, `routes/board.css` | The board: its config from the URL, the page layout, and its colors and type sizes. |
-| `routes/+layout.*`, `app.html`, `base.css` | What every page shares: the HTML shell, fonts, base styles (shared colors, type stacks), and the page options (prerendered, rendered in the browser). |
+| `routes/setup/` | The setup page (`setup/`), which builds a board's URL. |
+| `routes/+layout.*`, `app.html`, `base.css` | What both pages share: the HTML shell, fonts, base styles (shared colors, type stacks), and the page options (prerendered, rendered in the browser). |
 | `hooks.client.ts` | Sends errors the page didn't handle to the Worker's logs. |
 | `service-worker/` | Caches the site so a screen can start without network. |
 | `config.ts` | Settings, URL parameters and the list of feeds (`FEEDS`). |
@@ -26,12 +27,22 @@ Inside `src/`, data flows top to bottom through these folders. Each test file si
 | `lib/board/` | Turning that state into what the screen shows: `panels.ts` (the panel table), `build.ts` (rows and notes), `countdown.ts`, `health.ts` (live, delayed or unavailable) and `trim.ts` (fitting rows to the space). |
 | `lib/ui/` | The Svelte components, plus what only the screen needs: `format.ts` (badges, abbreviations, contrast), `palette.ts` (frame colors) and `rotation.svelte.ts` (cycling alerts). |
 | `lib/util/` | Generic helpers: `geo.ts` (distances) and `time.ts` (Boston service-day time). |
+| `lib/setup/` | The setup page's logic: `form.ts` (form to URL and back, through `config.ts`) and `nearby.ts` (stops to hide or pin). |
 | `lib/names/`, `routes/names.json/` | The feed-name check (`scan.ts`), which the build runs and publishes as `names.json` (see [Wording filter](#wording-filter)). |
 | `test/fixtures/` | Recorded API responses used by the tests. |
 
 Pages import from `src/lib/` as `#lib/...`, with the file extension (`#lib/board/build.ts`). This is SvelteKit 3's replacement for `$lib`, defined in the `imports` field of `package.json`. SvelteKit's options live in `vite.config.ts`.
 
 ## Configuration
+
+The easiest way to configure a screen is the setup page, `setup/` under the board (for example `https://dtemkin1.github.io/transit-screen/setup/`):
+
+- It has a field for each URL parameter below. It looks the building up as you type and lists the stops and docks nearby: uncheck one to hide it, or check a farther one to pin it.
+- A live preview shows the board at landscape TV, portrait TV and short-window sizes.
+- **Copy URL** copies the board's URL, with only the settings that differ from the defaults.
+- To change an existing screen, paste its URL under "Start from an existing board URL".
+
+The page's own address keeps the form's settings, so a reload or a shared setup link opens with the same choices. Each change (or each pause while typing) is a step in the browser's history, so Back undoes it.
 
 Settings live in `src/config.ts` (`defaultConfig`). The board can override some of them from the URL:
 
@@ -43,13 +54,14 @@ Settings live in `src/config.ts` (`defaultConfig`). The board can override some 
 | `palette` | `?palette=apricot` | Frame color: an SA+P color (`apricot`, `yellow`, `pink`, `blue`, `orange`, `green`), `rotate` through them daily (default), or `mit` (black with MIT red accents). |
 | `inset` | `?inset=3` | Margin, in % of the screen's shorter side (0-10), for TVs that crop the edges (overscan). Default 0. |
 | `priority` | `?priority=shuttle,subway` | Which panels to keep on a screen too short for all of them, most important first (`subway`, `bus`, `shuttle`, `bikes`). Panels left out follow in the default order: Red Line, buses, shuttles, Bluebikes. |
+| `pin`, `hide` | `?hide=2168,mbta:70` | Comma-separated ids to pin or hide; see `pin` and `hide` below. |
 
 Other `Config` fields are set in code only (`src/config.ts`):
 
 - `location`, `building`, `name`: default to W41, Metropolitan Warehouse, `{ lat: 42.35982, lon: -71.0961 }`. URL overrides apply, see above.
 - `workerUrl`: from the `WORKER_URL` build variable (default `http://localhost:8787`; see `src/env.ts`).
 - `feeds`: the agencies on the board, each with its walk limit (MBTA subway 15 min and bus 7, MIT shuttles 5, EZRide 6, Bluebikes 8 with the nearest 4 docks). See [Adding a feed](#adding-a-feed).
-- `pin`, `hide`: stop, route or alert IDs to pin or hide (routes and alerts also as `source:id`, e.g. `mbta:12345`). Hiding an alert is the way to remove one the wording filter misses. `pin` only keeps a stop that is already inside the mode's straight-line candidate circle (`maxWalkMin` x 60 x 1.3 m); it cannot add a farther stop.
+- `pin`, `hide` (also URL parameters): stop, route or alert IDs to pin or hide (routes and alerts also as `source:id`, e.g. `mbta:12345`). Hiding an alert is the way to remove one the wording filter misses. `pin` only keeps a stop that is already inside the mode's straight-line candidate circle (`maxWalkMin` x 60 x 1.3 m); it cannot add a farther stop.
 - `walkSpeedMps` (1.3) and `walkDetourFactor` (1.3): used only for the straight-line walk estimate.
 
 ### What the board shows
@@ -74,7 +86,7 @@ Like the site, where each page has its own color, the frame color changes every 
 
 The `mit` palette follows MIT's identity ([brand.mit.edu/color](https://brand.mit.edu/color)) instead: a black frame and rails, the building number in MIT Bright Red, and MIT Red for status text and the alert band.
 
-Colors are in `src/lib/ui/palette.ts`; the rest of the styling is in `src/routes/board.css`, with the base styles every page shares in `src/base.css`.
+Colors are in `src/lib/ui/palette.ts`; the rest of the styling is in `src/routes/board.css`, with what the setup page shares in `src/base.css`.
 
 #### Checking the design
 
@@ -193,11 +205,11 @@ npm ci                  # the board and the Worker share one package.json
 # Terminal 1: the Worker on http://localhost:8787
 npm run worker:dev      # optional: create worker/.dev.vars with MBTA_API_KEY=...
 
-# Terminal 2: the board on http://localhost:5173
+# Terminal 2: the board on http://localhost:5173 (setup page at /setup/)
 npm run dev
 ```
 
-`npm run build` writes the static site to `build/`: `index.html` (the board), `names.json` (the feed-name check) and `_app/` (scripts and styles).
+`npm run build` writes the static site to `build/`: `index.html` (the board), `setup/index.html`, `names.json` (the feed-name check) and `_app/` (scripts and styles).
 
 Without `MBTA_API_KEY`, the Worker calls MBTA without a key. That works at low volume, which is fine for development. The board's default `workerUrl` already points at `http://localhost:8787`. Set `WORKER_URL` in a root `.env.local` only if you run the Worker elsewhere.
 
@@ -260,4 +272,4 @@ Then add that origin (for example `https://<athena-origin>`) to `ALLOWED_ORIGINS
 - Open the board in a browser's full-screen or kiosk mode (for example, Chrome with `--kiosk`, or press F11).
 - Disable screen sleep and screensaver, both in the OS power settings and in the browser.
 - The page needs no interaction: it starts on load and keeps itself up to date.
-- To point a kiosk at another place, add `?building=...` to the URL (or `?lat=...&lon=...&building=...&name=...` for a place the campus map lacks).
+- To point a kiosk at another place, build its URL on the setup page (`setup/`), or add `?building=...` to the URL yourself (or `?lat=...&lon=...&building=...&name=...` for a place the campus map lacks).

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveConfig, defaultConfig, parsePriority } from './config';
+import { configSearch, resolveConfig, defaultConfig, parsePriority } from './config';
 import { walkLimits } from './lib/feeds';
 
 describe('priority', () => {
@@ -62,5 +62,40 @@ describe('resolveConfig', () => {
   });
   it('ignores non-numeric lat/lon', () => {
     expect(resolveConfig('?lat=abc&lon=-71').location).toEqual(defaultConfig.location);
+  });
+});
+
+describe('pin and hide', () => {
+  it('read comma-separated ids, ignoring blanks', () => {
+    const c = resolveConfig('?pin=place-knncl,%202168&hide=mbta:70,,1');
+    expect(c.pin).toEqual(['place-knncl', '2168']);
+    expect(c.hide).toEqual(['mbta:70', '1']);
+  });
+  it('default to empty', () => {
+    expect(resolveConfig('?pin=,').pin).toEqual([]);
+  });
+});
+
+describe('configSearch', () => {
+  it('is empty for the default board', () => {
+    expect(configSearch(resolveConfig(''))).toBe('');
+  });
+  it('leaves out what the building implies (name, palette, location from the map)', () => {
+    expect(configSearch(resolveConfig('?building=32&palette=mit'))).toBe('?building=32');
+    expect(configSearch(resolveConfig('?palette=rotate&name=Metropolitan%20Warehouse'))).toBe('');
+  });
+  it('keeps lists readable', () => {
+    expect(configSearch(resolveConfig('?hide=mbta:70,1'))).toBe('?hide=mbta:70,1');
+  });
+  it.each([
+    '?building=32&name=Stata%20Center&palette=pink',
+    '?building=7&lat=42.36&lon=-71.09',
+    '?lat=42.36&lon=-71.09',
+    '?priority=shuttle,subway&inset=2.5',
+    '?palette=mit&pin=place-knncl&hide=1,mbta:a1',
+    '?building=E14&palette=rotate',
+  ])('reads back as the same config: %s', (search) => {
+    const cfg = resolveConfig(search);
+    expect(resolveConfig(configSearch(cfg))).toEqual(cfg);
   });
 });

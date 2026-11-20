@@ -1,0 +1,21 @@
+/* The setup page: the board's light gray and SA+P burgundy, for a person at a desk rather than a TV.
+   Shared colors and type stacks are in src/base.css. */
+:root {
+  --surface: #ffffff;
+  --accent: #6b0033;    /* SA+P burgundy; white on it 12.6:1 */
+  --on-accent: #ffffff;
+  --border: #767676;    /* control edges, 4.5:1 on white */
+  --error: #a3001b;     /* 8.2:1 on white */
+  font-size: 16px;
+  line-height: 1.4;
+  background: var(--page);
+}
+
+body {
+  background: var(--page);
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
