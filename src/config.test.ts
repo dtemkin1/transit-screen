@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveConfig, defaultConfig, parsePriority, pickWorkerUrl } from './config';
+import { resolveConfig, defaultConfig, parsePriority } from './config';
 import { walkLimits } from './lib/feeds';
 
 describe('priority', () => {
@@ -12,16 +12,6 @@ describe('priority', () => {
   it('ignores unknown and repeated names', () => {
     expect(parsePriority('bikes, ferry,bikes,,bus')).toEqual(['bikes', 'bus', 'subway', 'shuttle']);
     expect(resolveConfig('?priority=nonsense').priority).toEqual(defaultConfig.priority);
-  });
-});
-
-describe('pickWorkerUrl', () => {
-  it('uses the configured URL when set', () => {
-    expect(pickWorkerUrl('https://w.example')).toBe('https://w.example');
-  });
-  it('falls back to localhost when unset or empty', () => {
-    expect(pickWorkerUrl(undefined)).toBe('http://localhost:8787');
-    expect(pickWorkerUrl('')).toBe('http://localhost:8787');
   });
 });
 

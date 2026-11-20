@@ -1,5 +1,5 @@
 // Dev-only sample data covering every board state: ?demo, ?demo=outage, ?demo=loading, ?demo=failing.
-// App imports it only under import.meta.env.DEV, so production builds never include it.
+// The board uses it only when `dev` (from $app/env) is true, so production builds never include it.
 import { FEEDS } from '../../config';
 import type { Discovered } from './discovery';
 import type { PollerState } from './poller.svelte';

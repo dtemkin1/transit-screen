@@ -1,0 +1,36 @@
+/* What every page shares (loaded by src/routes/+layout.svelte); each page's own stylesheet adds its
+   sizes and colors. SA+P's black on light gray. */
+/* SA+P type stacks: closest Adobe Fonts (kit optional), then SA+P's own names, then Helvetica/Arial. */
+:root {
+  --page: #f5f5f5;      /* SA+P light gray */
+  --text: #000000;      /* 19:1 on the page */
+  --muted: #595959;     /* 6.4:1 on the page, 7:1 on white */
+  --rule: #d2d2d2;      /* dividers only */
+  --font-sans: 'neue-haas-unica', 'System', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-display: 'neue-haas-grotesk-display', 'System', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  /* Adobe serves Neue Haas Grotesk Display 55 Roman at 500 and 65 Medium at 600. */
+  --display-medium: 600;
+  color-scheme: light;
+  font-family: var(--font-sans);
+  color: var(--text);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+/* Read by screen readers, not shown: the full text behind a cut, the board's heading. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

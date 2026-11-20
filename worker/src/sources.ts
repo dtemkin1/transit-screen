@@ -1,5 +1,5 @@
 // Upstream feeds by the board's feed id (FEEDS in src/config.ts). The Worker proxies only these
-// GTFS zips; scripts/scan-names.ts checks the names in all of them.
+// GTFS zips; the site's build checks the names in all of them (src/lib/names/scan.ts).
 
 const passio = (agency: string) => `https://passio3.com/${agency}/passioTransit/gtfs/google_transit.zip`
 

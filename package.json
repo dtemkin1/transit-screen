@@ -3,31 +3,45 @@
     "private": true,
     "version": "0.0.0",
     "type": "module",
+    "imports": {
+        "#lib": "./src/lib",
+        "#lib/*": "./src/lib/*"
+    },
     "repository": {
         "type": "git",
         "url": "git+https://github.com/dtemkin1/transit-screen.git"
     },
     "scripts": {
-        "dev": "vite",
+        "dev": "vite dev",
         "build": "vite build",
         "preview": "vite preview",
         "test": "vitest run",
         "test:watch": "vitest",
-        "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
-        "scan-names": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/scan-names.ts"
+        "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && tsc -p src/service-worker",
+        "prepare": "svelte-kit sync || echo \"\"",
+        "worker:dev": "wrangler dev --config worker/wrangler.toml",
+        "worker:deploy": "wrangler deploy --config worker/wrangler.toml",
+        "worker:check": "tsc -p worker"
     },
     "devDependencies": {
+        "@cloudflare/workers-types": "^5.20261117.1",
+        "@sveltejs/adapter-static": "^4.0.1",
+        "@sveltejs/kit": "^3.4.0",
         "@sveltejs/vite-plugin-svelte": "^7.3.1",
-        "@tsconfig/svelte": "^5.0.8",
         "@types/node": "^24.19.0",
         "svelte": "^5.57.1",
         "svelte-check": "^4.7.6",
         "typescript": "~6.0.2",
         "vite": "^8.3.1",
-        "vitest": "^5.1.0"
+        "vitest": "^5.1.0",
+        "wrangler": "^4.0.0"
     },
     "dependencies": {
         "fflate": "^0.8.3",
         "obscenity": "0.4.6"
+    },
+    "allowScripts": {
+        "esbuild@0.28.2": true,
+        "workerd@1.20261118.1": true
     }
 }

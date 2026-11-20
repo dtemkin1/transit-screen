@@ -113,9 +113,11 @@ interface WhereisHit {
 
 const REPORT_MAX_BYTES = 4096
 
+const isText = (v: unknown): v is string => typeof v === 'string'
+
 /**
- * Logs each alert the board hid for its wording, so a false positive (a real street the word list
- * flags) shows up in the Worker's logs instead of only on a kiosk's console.
+ * Logs what an unattended screen would otherwise keep to its own console: each alert the board hid
+ * for its wording (so a real street the word list flags shows up), and errors the page didn't handle.
  */
 async function report(req: Request): Promise<Response> {
   if (req.method !== 'POST') return text(405, 'method not allowed')
@@ -127,11 +129,15 @@ async function report(req: Request): Promise<Response> {
   } catch {
     return text(400, 'invalid json')
   }
-  const { kind, source, id, header } = (body ?? {}) as Record<string, unknown>
-  if (kind !== 'hidden-alert' || typeof source !== 'string' || typeof id !== 'string' || typeof header !== 'string') {
-    return text(400, 'expected { kind: "hidden-alert", source, id, header }')
+  const b = (body ?? {}) as Record<string, unknown>
+  const origin = req.headers.get('Origin')
+  if (b.kind === 'hidden-alert' && isText(b.source) && isText(b.id) && isText(b.header)) {
+    console.warn(JSON.stringify({ event: 'hidden-alert', source: b.source, id: b.id, header: b.header, origin }))
+  } else if (b.kind === 'client-error' && isText(b.message) && isText(b.page) && (b.stack === undefined || isText(b.stack))) {
+    console.error(JSON.stringify({ event: 'client-error', message: b.message, stack: b.stack, page: b.page, origin }))
+  } else {
+    return text(400, 'expected { kind: "hidden-alert", source, id, header } or { kind: "client-error", message, page, stack? }')
   }
-  console.warn(JSON.stringify({ event: 'hidden-alert', source, id, header, origin: req.headers.get('Origin') }))
   return new Response(null, { status: 204 })
 }
 

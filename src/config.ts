@@ -1,3 +1,4 @@
+import { WORKER_URL } from '$app/env/public';
 import { isPaletteName, type PaletteChoice } from './lib/ui/palette';
 import type { FeedConfig } from './lib/feeds/types';
 import type { LatLon, PanelId } from './lib/types';
@@ -31,11 +32,6 @@ const PANEL_IDS: readonly PanelId[] = ['subway', 'bus', 'shuttle', 'bikes'];
 export function parsePriority(raw: string, fallback: readonly PanelId[] = PANEL_IDS): PanelId[] {
   const named = raw.split(',').map((s) => s.trim()).filter((s): s is PanelId => (PANEL_IDS as readonly string[]).includes(s));
   return [...new Set([...named, ...fallback])];
-}
-
-/** An unset or empty VITE_WORKER_URL (e.g. an unset CI variable) falls back to local dev. */
-export function pickWorkerUrl(raw: string | undefined): string {
-  return raw || 'http://localhost:8787';
 }
 
 const passioRealtime = (agency: string) => ({
@@ -74,7 +70,7 @@ export const defaultConfig: Config = {
   palette: 'rotate',
   inset: 0,
   location: { lat: 42.35982, lon: -71.0961 },
-  workerUrl: pickWorkerUrl(import.meta.env.VITE_WORKER_URL),
+  workerUrl: WORKER_URL,
   locate: false,
   feeds: FEEDS,
   pin: [],

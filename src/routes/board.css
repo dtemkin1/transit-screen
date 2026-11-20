@@ -1,30 +1,19 @@
-/* SA+P identity (sap.mit.edu inner pages): black on light gray inside an L-frame in one SA+P color. */
-/* SA+P type stacks: closest Adobe Fonts (kit optional), then SA+P's own names, then Helvetica/Arial and Georgia. */
+/* The board: SA+P identity (sap.mit.edu inner pages), black on light gray inside an L-frame in one
+   SA+P color. Shared colors and type stacks are in src/base.css. */
 :root {
   --frame: #ffc486;
   --on-frame: #000000;
   --rail: #6b0033;      /* set per palette; 3:1+ against the page */
-  --page: #f5f5f5;      /* SA+P light gray */
-  --text: #000000;      /* 19:1 on the page */
-  --muted: #595959;     /* 6.4:1 */
   --emphasis: #6b0033;  /* SA+P burgundy: status and warnings */
   --band: #6b0033;      /* alert band */
   --on-band: #ffffff;   /* 12.6:1 */
   --band-icon: #e0fd65; /* SA+P lime: reads on the burgundy band whatever today's frame color is */
-  --rule: #d2d2d2;
   --rail-w: 0.6vmin;
-  --font-sans: 'neue-haas-unica', 'System', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  --font-display: 'neue-haas-grotesk-display', 'System', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   /* Building name, messages and the legend. */
   --font-accent: 'freight-text-pro', 'Rhymes Text', 'Rhymes', Georgia, 'Times New Roman', serif;
-  /* Adobe serves Neue Haas Grotesk Display 55 Roman at 500 and 65 Medium at 600. */
-  --display-medium: 600;
-  color-scheme: light;
-  font-family: var(--font-sans);
   /* Scales with the screen for the TV; the rem part makes browser zoom enlarge it too. */
   font-size: clamp(16px, calc(1.5vmin + 0.95rem), 64px);
   line-height: 1.2;
-  color: var(--text);
   background: var(--frame);
   font-variant-numeric: tabular-nums;
 }
@@ -51,21 +40,14 @@
   --band-icon: #ffffff;
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
 html,
 body {
-  margin: 0;
   height: 100%;
   overflow: hidden;
   background: var(--frame);
 }
 
-/* App sets data-idle after 3 s without pointer movement. */
+/* The board sets data-idle after 3 s without pointer movement. */
 html[data-idle] {
   cursor: none;
 }
@@ -74,14 +56,4 @@ html[data-idle] {
 #app {
   height: 100%;
   padding: var(--inset, 0);
-}
-
-/* Read by screen readers, not shown: the full text behind a cut, the header's heading. */
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
 }

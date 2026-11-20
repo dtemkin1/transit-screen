@@ -1,21 +1,32 @@
 <script lang="ts">
-  import { resolveConfig } from './config';
-  import { buildBoard } from './lib/board/build';
-  import { PANELS, panelToHide } from './lib/board/panels';
-  import AlertStrip from './lib/ui/AlertStrip.svelte';
-  import Header from './lib/ui/Header.svelte';
-  import Panel from './lib/ui/Panel.svelte';
-  import { createDemoPoller } from './lib/data/demo.svelte';
-  import { paletteFor } from './lib/ui/palette';
-  import { createPoller } from './lib/data/poller.svelte';
-  import { serviceDate } from './lib/util/time';
-  import type { BoardPanel, PanelId } from './lib/types';
+  import './board.css';
+  import { untrack } from 'svelte';
+  import { dev } from '$app/env';
+  import { updated } from '$app/state';
+  import { buildBoard } from '#lib/board/build.ts';
+  import { PANELS, panelToHide } from '#lib/board/panels.ts';
+  import AlertStrip from '#lib/ui/AlertStrip.svelte';
+  import Header from '#lib/ui/Header.svelte';
+  import Panel from '#lib/ui/Panel.svelte';
+  import { createDemoPoller } from '#lib/data/demo.svelte.ts';
+  import { paletteFor } from '#lib/ui/palette.ts';
+  import { createPoller } from '#lib/data/poller.svelte.ts';
+  import { serviceDate } from '#lib/util/time.ts';
+  import type { BoardPanel, PanelId } from '#lib/types.ts';
+  import type { PageProps } from './$types';
 
-  const cfg = resolveConfig(location.search);
-  /** `?demo` on the dev server shows sample data covering every state (src/lib/data/demo.svelte.ts). */
-  const demo = import.meta.env.DEV ? new URLSearchParams(location.search).get('demo') : null;
-  const poller = demo !== null ? createDemoPoller(demo) : createPoller(cfg);
+  let props: PageProps = $props();
+  // Set up once per page load: the board has no links, and the daily reload starts it fresh.
+  const cfg = untrack(() => props.data.cfg);
+  /** Demo mode exists only on the dev server: `dev` is a build-time constant, so builds leave the sample data out. */
+  const demo = dev ? untrack(() => props.data.demo) : null;
+  const poller = dev && demo !== null ? createDemoPoller(demo) : createPoller(cfg);
   const data = poller.state;
+
+  // A new deploy reaches the screen within the hour (SvelteKit checks hourly), not at the next 04:00 reload.
+  $effect(() => {
+    if (updated.current) location.reload();
+  });
 
   /** Picked once per load; the daily 04:00 reload moves a rotating palette on. */
   const palette = paletteFor(cfg.palette, serviceDate(Date.now()));
@@ -49,7 +60,7 @@
 
   /**
    * One column on screens clearly taller than wide, or too narrow for two columns of 16 px type
-   * (36 type-widths, as app.css caps it). The header reads the same `<html data-layout>`.
+   * (36 type-widths, as board.css caps it). The header reads the same `<html data-layout>`.
    */
   const portraitQuery = matchMedia('(max-aspect-ratio: 5/6), (max-width: 575px)');
   let landscape = $state(!portraitQuery.matches);
@@ -129,6 +140,8 @@
     return [...cols.entries()].sort(([a], [b]) => a - b).map(([, col]) => col);
   });
 </script>
+
+<svelte:head><title>{[cfg.building, cfg.name || data.name].filter(Boolean).join(' ')} transit screen</title></svelte:head>
 
 <div class="screen">
   <Header building={cfg.building} name={cfg.name || data.name || ''} now={data.now} tag={demo !== null ? 'Sample data' : undefined} />

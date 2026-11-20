@@ -1,8 +1,9 @@
 // Checks every feed name against the board's wording filter; a flagged name is a real street that
-// belongs in LOCAL_NAMES (src/lib/util/decency.ts), or alerts naming it would be hidden.
+// belongs in LOCAL_NAMES (src/lib/util/decency.ts), or alerts naming it would be hidden. The build
+// runs it and publishes the result as names.json (src/routes/names.json/+server.ts).
 import { strFromU8, unzipSync } from 'fflate'
-import { isAllowlisted, isIndecent } from '../src/lib/util/decency.ts'
-import { parseCsv } from '../src/lib/feeds/gtfs/csv.ts'
+import { isAllowlisted, isIndecent } from '../util/decency.ts'
+import { parseCsv } from '../feeds/gtfs/csv.ts'
 
 export interface NameReport {
   checkedAt: string

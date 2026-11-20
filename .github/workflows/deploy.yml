@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: "0 9 * * *"
+    - cron: "0 4 * * *"
   workflow_dispatch:
 
 permissions:
@@ -31,36 +31,26 @@ jobs:
 
       - run: npm run check
 
-      - run: npm test
-
-      - run: npm ci
-        working-directory: worker
-
-      - run: npm run check
-        working-directory: worker
+      - run: npm run worker:check
 
       - run: npm test
-        working-directory: worker
 
       - name: Check WORKER_URL
-        run: test -n "$VITE_WORKER_URL" || { echo "::error::repo variable WORKER_URL is not set"; exit 1; }
+        run: test -n "$WORKER_URL" || { echo "::error::repo variable WORKER_URL is not set"; exit 1; }
         env:
-          VITE_WORKER_URL: ${{ vars.WORKER_URL }}
+          WORKER_URL: ${{ vars.WORKER_URL }}
 
       - name: Build
         run: npm run build
         env:
-          VITE_WORKER_URL: ${{ vars.WORKER_URL }}
-          VITE_ADOBE_FONTS_KIT: ${{ vars.ADOBE_FONTS_KIT }}
-
-      - name: Check feed names
-        run: npm run --silent scan-names > dist/names.json
+          WORKER_URL: ${{ vars.WORKER_URL }}
+          ADOBE_FONTS_KIT: ${{ vars.ADOBE_FONTS_KIT }}
 
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: build
 
   deploy:
     needs: build

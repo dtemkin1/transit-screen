@@ -10,7 +10,7 @@ export const PALETTES = {
   blue: { frame: '#9ab1ff', onFrame: '#000000', rail: '#6b0033', brand: 'sap' },
   orange: { frame: '#fd6234', onFrame: '#000000', rail: '#6b0033', brand: 'sap' },
   green: { frame: '#707f00', onFrame: '#000000', rail: '#707f00', brand: 'sap' },
-  /** MIT (brand.mit.edu/color): black with red accents, for buildings outside SA+P. Its `brand` picks MIT's type and accents in app.css. */
+  /** MIT (brand.mit.edu/color): black with red accents, for buildings outside SA+P. Its `brand` picks MIT's type and accents in board.css. */
   mit: { frame: '#000000', onFrame: '#ffffff', rail: '#000000', brand: 'mit' },
 } as const;
 

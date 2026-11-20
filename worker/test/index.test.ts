@@ -131,6 +131,18 @@ describe('worker', () => {
     log.mockRestore()
   })
 
+  it('report logs an error from a screen as an error', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { run } = setup(() => new Response('x'))
+    const body = { kind: 'client-error', message: 'TypeError: x is undefined', stack: 'at build', page: '/?building=32' }
+    const res = await run(new Request('https://w.test/report', { method: 'POST', body: JSON.stringify(body) }))
+    expect(res.status).toBe(204)
+    expect(JSON.parse(log.mock.calls[0][0] as string)).toEqual({
+      event: 'client-error', message: 'TypeError: x is undefined', stack: 'at build', page: '/?building=32', origin: null,
+    })
+    log.mockRestore()
+  })
+
   it('report rejects anything else without logging', async () => {
     const log = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const { run } = setup(() => new Response('x'))
@@ -139,6 +151,7 @@ describe('worker', () => {
     expect((await post('not json')).status).toBe(400)
     expect((await post(JSON.stringify({ kind: 'other', source: 'mit', id: '1', header: 'x' }))).status).toBe(400)
     expect((await post(JSON.stringify({ kind: 'hidden-alert', source: 'mit', id: 1, header: 'x' }))).status).toBe(400)
+    expect((await post(JSON.stringify({ kind: 'client-error', message: 'x' }))).status).toBe(400)
     expect((await post(JSON.stringify({ kind: 'hidden-alert', source: 'mit', id: '1', header: 'x'.repeat(5000) }))).status).toBe(413)
     expect(log).not.toHaveBeenCalled()
     log.mockRestore()

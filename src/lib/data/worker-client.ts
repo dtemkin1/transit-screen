@@ -1,7 +1,7 @@
 import type { Config } from '../../config';
 import type { Alert } from '../types';
 
-export function workerUrl(cfg: Config, path: string): string {
+export function workerUrl(cfg: Pick<Config, 'workerUrl'>, path: string): string {
   return `${cfg.workerUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 }
 
@@ -35,12 +35,33 @@ export function fetchBytes(url: string, timeoutMs = 20_000): Promise<Uint8Array>
   return timedFetch(url, undefined, timeoutMs, async (r) => new Uint8Array(await r.arrayBuffer()));
 }
 
-/** Tells the Worker (which logs it) that the board hid an alert for its wording. Best effort; never throws. */
-export function reportHiddenAlert(cfg: Config, alert: Alert): void {
+/** Sends a report to the Worker, which logs it. Best effort; never throws. */
+function report(cfg: Pick<Config, 'workerUrl'>, body: Record<string, unknown>): void {
   fetch(workerUrl(cfg, '/report'), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ kind: 'hidden-alert', source: alert.source, id: alert.id, header: alert.header.slice(0, 1000) }),
+    body: JSON.stringify(body),
     keepalive: true,
   }).catch(() => {});
+}
+
+/** Tells the Worker that the board hid an alert for its wording. */
+export function reportHiddenAlert(cfg: Config, alert: Alert): void {
+  report(cfg, { kind: 'hidden-alert', source: alert.source, id: alert.id, header: alert.header.slice(0, 1000) });
+}
+
+/** Errors already reported in this page load. */
+const reportedErrors = new Set<string>();
+/** An error repeating with every poll is sent once, and a page sends at most this many. */
+const MAX_ERROR_REPORTS = 10;
+
+/** Tells the Worker about an error the page didn't handle, so a broken screen shows up in its logs. */
+export function reportError(cfg: Pick<Config, 'workerUrl'>, error: unknown): void {
+  const e = error instanceof Error ? error : new Error(String(error));
+  const message = `${e.name}: ${e.message}`.slice(0, 500);
+  if (reportedErrors.has(message) || reportedErrors.size >= MAX_ERROR_REPORTS) return;
+  reportedErrors.add(message);
+  report(cfg, {
+    kind: 'client-error', message, stack: e.stack?.slice(0, 2000), page: `${location.pathname}${location.search}`.slice(0, 500),
+  });
 }

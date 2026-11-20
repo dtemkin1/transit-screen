@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { strToU8, zipSync } from 'fflate'
-import { scanNames, summary, type NameReport } from './names.ts'
+import { scanNames, summary, type NameReport } from './scan.ts'
 
 const zip = zipSync({
   'stops.txt': strToU8('stop_id,stop_name\n1,"Vassar St, Mass Ave"\n2,Sh1t Hollow Rd\n'),

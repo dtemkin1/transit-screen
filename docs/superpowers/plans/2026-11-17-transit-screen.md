@@ -636,11 +636,11 @@ Visual spec (from approved mockups):
 - Create: `.github/workflows/deploy.yml`
 - Modify: `README.md`
 
-- [ ] **Step 1: Write the deploy workflow.** On push to `main`: `npm ci`, `npm test`, `npm run build` with `VITE_WORKER_URL` from repo variable `vars.WORKER_URL`, then `actions/upload-pages-artifact` (`dist/`) and `actions/deploy-pages`.
+- [ ] **Step 1: Write the deploy workflow.** On push to `main`: `npm ci`, `npm test`, `npm run build` with `VITE_WORKER_URL` from repo variable `vars.WORKER_URL`, then `actions/upload-pages-artifact` (`build/`) and `actions/deploy-pages`.
 - [ ] **Step 2: Update `README.md`** with:
   - config fields and URL overrides (`?lat&lon&name`)
   - Worker deploy: `cd worker && npx wrangler secret put MBTA_API_KEY && npx wrangler deploy`, then add the deployed origin(s) to `ALLOWED_ORIGINS`
-  - Athena deploy: `npm run build`, then copy `dist/` to `~/www/transit-screen/` and add that origin to `ALLOWED_ORIGINS`
+  - Athena deploy: `npm run build`, then copy `build/` to `~/www/transit-screen/` and add that origin to `ALLOWED_ORIGINS`
   - kiosk tips: fullscreen, disable sleep
 - [ ] **Step 3: Verify.** Run `npm run build && npx vite preview --base /transit-screen/` and open `http://localhost:4173/transit-screen/`. Expected: the board renders and the network panel shows no 404s.
 - [ ] **Step 4: Commit** `docs: deployment for Pages, Athena, and Worker`
