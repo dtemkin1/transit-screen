@@ -161,7 +161,7 @@ The lookup accepts building numbers as MIT's [Space Accounting Guidelines](https
 - **Joined letters:** written with hyphens or without (`W85A-B-C` or `W85ABC`, `14N-S-E-W`). A room number (`32-123`) isn't a building and isn't looked up.
 - **Place names:** `?building=pika`.
 
-The map leaves out off-campus buildings (`OC` prefix) and ones that no longer stand. For those, give `lat` and `lon` instead.
+The map leaves out off-campus buildings (`OC` prefix) and some others, such as W57. For those, give `lat` and `lon` instead.
 
 - `&name=` overrides the name.
 - `&lat=...&lon=...` sets the location yourself, with no lookup, for a spot the map doesn't have.

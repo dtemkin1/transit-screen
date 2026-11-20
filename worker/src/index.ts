@@ -114,12 +114,7 @@ interface WhereisHit {
   long_wgs84?: number
 }
 
-/*
- * MIT building numbers (Space Accounting Guidelines, MIT Design Standards T18, 2.2): an optional area
- * prefix (N, NE, NW, E, EE, W, WW, OC), a number, and optionally letters. A letter marks a wing (14N),
- * an auxiliary building (W57A beside W57) or a component (W61A of W61), and some buildings join several
- * (W85ABC, written W85A-B-C). The campus map also lists places by name ("pika").
- */
+// Building numbers follow MIT's Space Accounting Guidelines 2.2: an area prefix, a number, optional letters.
 
 /** "W85A-B-C" → "W85ABC": a hyphen between single letters joins them. One before a digit starts a room ("32-123"). */
 const joinLetters = (id: string) => id.replace(/-(?=[A-Z](?:-|$))/g, '')
@@ -128,9 +123,8 @@ const joinLetters = (id: string) => id.replace(/-(?=[A-Z](?:-|$))/g, '')
 const MAIN_BUILDING = /^(.*\d)[A-Z]+$/
 
 /**
- * The place `id` names, among whereis's search results: the building with that number, else the
- * place with that object id ("pika"). A search for "4" also finds "W4" and "E14", so only exact
- * matches count.
+ * The building numbered `id`, else the place whose map id it is ("pika"). Exact matches only: a
+ * search for "4" also finds "W4" and "E14".
  */
 function findPlace(hits: WhereisHit[], id: string): WhereisHit | undefined {
   return hits.find((h) => h.bldgnum?.toUpperCase() === id) ?? hits.find((h) => h.id?.toUpperCase() === `OBJECT-${id}`)
