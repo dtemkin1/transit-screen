@@ -1,4 +1,5 @@
-import type { RouteInfo } from '../types';
+import type { Alert, RouteInfo } from '../types';
+import type { Segment } from './fit';
 
 const HEX = /^#[0-9a-f]{6}$/i;
 /** The forms MBTA uses on its own signs. */
@@ -68,4 +69,19 @@ export function plural(n: number, noun: string): string {
 
 export function countNoun(n: number, noun: string): string {
   return `${n} ${plural(n, noun)}`;
+}
+
+/** A label the alert opens with ("Red Line: …", "Kendall/MIT: …"): short, with no sentence or time before the colon. */
+const ALERT_LABEL = /^([^:.!?]{1,40}):\s+([\s\S]*)$/;
+
+/**
+ * An alert's text, led by its agency in bold and never cut. A label the alert opens with joins
+ * the agency ("MBTA Red Line:"), so there's one colon; an alert starting with the agency gets nothing added.
+ */
+export function alertSegments({ agency, header }: Pick<Alert, 'agency' | 'header'>): Segment[] {
+  if (!agency || header.toLowerCase().startsWith(agency.toLowerCase())) return [{ text: header }];
+  const label = ALERT_LABEL.exec(header);
+  return label
+    ? [{ text: `${agency} ${label[1]}:`, cls: 'agency', keep: true }, { text: ` ${label[2]}` }]
+    : [{ text: `${agency}:`, cls: 'agency', keep: true }, { text: ` ${header}` }];
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { abbreviate, contrastRatio, countNoun, plural, routeBadge, splitVia } from './format';
+import { abbreviate, alertSegments, contrastRatio, countNoun, plural, routeBadge, splitVia } from './format';
 import type { RouteInfo } from '../types';
 
 const route = (o: Partial<RouteInfo>): RouteInfo => ({
@@ -68,5 +68,31 @@ describe('countNoun', () => {
     expect(countNoun(17, 'dock')).toBe('17 docks');
     expect(plural(1, 'bike')).toBe('bike');
     expect(plural(2, 'bike')).toBe('bikes');
+  });
+});
+
+describe('alertSegments', () => {
+  const alert = (header: string, agency?: string) => ({ header, agency });
+  const bold = { cls: 'agency', keep: true };
+
+  it('joins the agency to a label the alert opens with, so there is one colon', () => {
+    expect(alertSegments(alert('Red Line: Shuttle buses replace trains.', 'MBTA'))).toEqual([
+      { text: 'MBTA Red Line:', ...bold }, { text: ' Shuttle buses replace trains.' },
+    ]);
+    expect(alertSegments(alert('Kendall/MIT: The elevator is out of service.', 'MBTA'))[0].text).toBe('MBTA Kendall/MIT:');
+  });
+
+  it('leads with the agency alone when the alert opens with no label', () => {
+    expect(alertSegments(alert('Buses detour via Main St this week.', 'EZRide'))).toEqual([
+      { text: 'EZRide:', ...bold }, { text: ' Buses detour via Main St this week.' },
+    ]);
+    // A time's colon, or one deep in a sentence, isn't a label.
+    expect(alertSegments(alert('9:30 PM trips are cancelled.', 'MBTA'))[0].text).toBe('MBTA:');
+    expect(alertSegments(alert('Expect delays. Reason: a disabled train.', 'MBTA'))[0].text).toBe('MBTA:');
+  });
+
+  it('adds nothing when the alert already starts with the agency, or has none', () => {
+    expect(alertSegments(alert('MBTA: Fares change Monday.', 'MBTA'))).toEqual([{ text: 'MBTA: Fares change Monday.' }]);
+    expect(alertSegments(alert('Red Line: Delays.'))).toEqual([{ text: 'Red Line: Delays.' }]);
   });
 });

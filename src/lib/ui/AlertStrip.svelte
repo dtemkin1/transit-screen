@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { fit, type Segment } from './fit';
+  import { fit } from './fit';
+  import { alertSegments as segments } from './format';
   import { createRotation } from './rotation.svelte';
   import type { Alert } from '../types';
 
@@ -8,11 +9,6 @@
   const rotation = createRotation(() => alerts.length, 10_000);
   const index = $derived(rotation.index);
   const current = $derived(alerts[index]);
-  /** The agency leads in bold and is never cut, unless the header already starts with it. */
-  const segments = ({ agency, header }: Alert): Segment[] =>
-    !agency || header.toLowerCase().startsWith(agency.toLowerCase())
-      ? [{ text: header }]
-      : [{ text: `${agency}:`, cls: 'agency', keep: true }, { text: ` ${header}` }];
   const text = $derived(current ? segments(current) : []);
 </script>
 

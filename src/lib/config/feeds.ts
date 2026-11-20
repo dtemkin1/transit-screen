@@ -13,7 +13,7 @@ export const FEEDS: FeedConfig[] = [
   // 7 min bus: brings in the 70 at Mass Ave @ Sidney St (6.7 min walk) beside the 1 and the 85.
   { kind: 'mbta', id: 'mbta', name: 'MBTA', walkMin: { subway: 15, bus: 7 } },
   {
-    kind: 'gtfs', id: 'mit', name: 'MIT shuttles', mode: 'shuttle', walkMin: 5,
+    kind: 'gtfs', id: 'mit', name: 'MIT Shuttles', mode: 'shuttle', walkMin: 5,
     realtime: passioRealtime('mit'), color: '#750014', named: true,
   },
   {
@@ -29,7 +29,7 @@ export const FEEDS: FeedConfig[] = [
     url: 'https://gbfs.bluebikes.com/gbfs/gbfs.json', unit: { one: 'bike', electric: 'e-bike' },
   },
   {
-    kind: "gtfs", id: "longwood", name: "Longwood shuttles", mode: "shuttle", walkMin: 5,
+    kind: "gtfs", id: "longwood", name: "Longwood Shuttles", mode: "shuttle", walkMin: 5,
     realtime: passioRealtime("longwoodcollective"), color: "#fdc42f", named: true,
   },
 ];
