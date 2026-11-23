@@ -303,7 +303,7 @@ describe('buildBoard: staleness and merge', () => {
       health: { ...input().health, mit: { lastOk: null } },
       scheduled: { ...empty(), mit: [dep('mit', 'shuttle', 'tech', 'm1')({ min: 90, live: false })] },
     }));
-    expect(panels).toEqual([{ id: 'shuttle', title: 'MIT shuttles', status: 'schedule-fallback', groups: [], notes: ['Live data unavailable, showing schedule'] }]);
+    expect(panels).toEqual([{ id: 'shuttle', title: 'MIT Shuttles', status: 'schedule-fallback', groups: [], notes: ['Live data unavailable, showing schedule'] }]);
   });
 
   it('a schedule with only past departures counts as no schedule: unavailable', () => {
@@ -311,7 +311,7 @@ describe('buildBoard: staleness and merge', () => {
       health: { ...input().health, mit: { lastOk: null } },
       scheduled: { ...empty(), mit: [dep('mit', 'shuttle', 'tech', 'm1')({ min: -30, live: false })] },
     }));
-    expect(panels).toEqual([{ id: 'shuttle', title: 'MIT shuttles', status: 'unavailable', groups: [], notes: ['Live data unavailable'] }]);
+    expect(panels).toEqual([{ id: 'shuttle', title: 'MIT Shuttles', status: 'unavailable', groups: [], notes: ['Live data unavailable'] }]);
   });
 
   it('no empty panel for a failing source without discovered stops', () => {
@@ -484,7 +484,7 @@ describe('buildBoard: bus and shuttle', () => {
       live: withLive([], { mit: [dep('mit', 'shuttle', 'tech', 'm1')({ min: 4, headsign: 'Kendall' })] }),
     }));
     const p = panel(panels, 'shuttle')!;
-    expect(p.title).toBe('MIT shuttles');
+    expect(p.title).toBe('MIT Shuttles');
     expect(p.groups[0].rows[0]).toMatchObject({ key: 'mit:tech:0', stopName: 'Stop m1', walkMin: 2 });
   });
 

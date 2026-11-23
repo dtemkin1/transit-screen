@@ -423,7 +423,7 @@ describe('Passio polling', () => {
     await vi.advanceTimersByTimeAsync(0);
     const mit = h.poller.state.alerts.filter((a) => a.source === 'mit').map((a) => a.id);
     expect(mit).toEqual(['ok']);
-    expect(console.warn).toHaveBeenCalledWith('poller: hid MIT shuttles alert bad for its wording');
+    expect(console.warn).toHaveBeenCalledWith('poller: hid MIT Shuttles alert bad for its wording');
     expect(h.reportHiddenAlert).toHaveBeenCalledWith(expect.objectContaining({ source: 'mit', id: 'bad' }));
     expect(h.poller.state.live.mit).toHaveLength(1);
     // The next alerts poll sees it again: still hidden, not reported again.
